@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { createLogSchema, dailyLogs, workers } from './schema';
+import { createLogSchema, dailyLogs, workers, insertWorkerSchema, type CreateLogRequest } from './schema';
+
+export type { CreateLogRequest };
 
 export const errorSchemas = {
   validation: z.object({
@@ -66,6 +68,16 @@ export const api = {
     },
   },
   workers: {
+    create: {
+      method: 'POST' as const,
+      path: '/api/logs/:logId/workers',
+      input: insertWorkerSchema,
+      responses: {
+        201: z.custom<typeof workers.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
     delete: {
       method: 'DELETE' as const,
       path: '/api/workers/:id',

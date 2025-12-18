@@ -16,6 +16,7 @@ export interface IStorage {
   getLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
   cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
   deleteLog(id: number): Promise<boolean>;
+  addWorker(logId: number, worker: InsertWorker): Promise<Worker | undefined>;
   deleteWorker(workerId: number): Promise<boolean>;
 }
 
@@ -99,6 +100,18 @@ export class DatabaseStorage implements IStorage {
       const result = await tx.delete(dailyLogs).where(eq(dailyLogs.id, id)).returning();
       return result.length > 0;
     });
+  }
+
+  async addWorker(logId: number, worker: InsertWorker): Promise<Worker | undefined> {
+    const [log] = await db.select().from(dailyLogs).where(eq(dailyLogs.id, logId));
+    if (!log) return undefined;
+    
+    const [newWorker] = await db.insert(workers).values({
+      ...worker,
+      dailyLogId: logId,
+    }).returning();
+    
+    return newWorker;
   }
 
   async deleteWorker(workerId: number): Promise<boolean> {

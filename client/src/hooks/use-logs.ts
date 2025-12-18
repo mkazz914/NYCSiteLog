@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type CreateLogRequest } from "@shared/routes";
-import { dailyLogs, workers } from "@shared/schema";
-import { z } from "zod";
+import { api, buildUrl } from "@shared/routes";
+import { type CreateLogRequest } from "@shared/routes";
+import { dailyLogs, workers, type InsertWorker } from "@shared/schema";
 
 // Type inference from schema
 export type DailyLog = typeof dailyLogs.$inferSelect;
@@ -127,6 +127,29 @@ export function useDeleteWorker() {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to delete worker');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.logs.get.path] });
+    },
+  });
+}
+
+export function useAddWorker() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ logId, worker }: { logId: number; worker: InsertWorker }) => {
+      const url = buildUrl(api.workers.create.path, { logId });
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(worker),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to add worker');
+      }
       return res.json();
     },
     onSuccess: () => {

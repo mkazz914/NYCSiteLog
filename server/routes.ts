@@ -263,6 +263,35 @@ export async function registerRoutes(
     res.json({ success });
   });
 
+  // Add Worker to Log
+  app.post(api.workers.create.path, async (req, res) => {
+    try {
+      const logId = Number(req.params.logId);
+      const log = await storage.getLog(logId);
+      if (!log) {
+        return res.status(404).json({ message: 'Log not found' });
+      }
+      if (log.contractorRepSignature) {
+        return res.status(400).json({ message: 'Cannot add workers to a signed log' });
+      }
+      
+      const input = api.workers.create.input.parse(req.body);
+      const worker = await storage.addWorker(logId, input);
+      if (!worker) {
+        return res.status(404).json({ message: 'Log not found' });
+      }
+      res.status(201).json(worker);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      throw err;
+    }
+  });
+
   // Delete Worker
   app.delete(api.workers.delete.path, async (req, res) => {
     const success = await storage.deleteWorker(Number(req.params.id));

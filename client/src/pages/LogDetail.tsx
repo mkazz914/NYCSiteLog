@@ -1,14 +1,18 @@
-import { useLog, useExportPdf, useDeleteWorker } from "@/hooks/use-logs";
+import { useLog, useExportPdf, useDeleteWorker, useAddWorker } from "@/hooks/use-logs";
 import { Header } from "@/components/Header";
 import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer, Trash2 } from "lucide-react";
+import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer, Trash2, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function LogDetail() {
   const [, params] = useRoute("/logs/:id");
@@ -16,8 +20,51 @@ export default function LogDetail() {
   const { data: log, isLoading, error } = useLog(id);
   const exportPdf = useExportPdf(id);
   const deleteWorker = useDeleteWorker();
+  const addWorker = useAddWorker();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  const [isAddWorkerOpen, setIsAddWorkerOpen] = useState(false);
+  const [newWorkerName, setNewWorkerName] = useState("");
+  const [newWorkerClassification, setNewWorkerClassification] = useState("");
+  const [newWorkerTimeIn, setNewWorkerTimeIn] = useState("07:00");
+
+  const handleAddWorker = async () => {
+    if (!newWorkerName.trim() || !newWorkerClassification.trim() || !newWorkerTimeIn.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all worker details.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await addWorker.mutateAsync({
+        logId: id,
+        worker: {
+          name: newWorkerName.trim(),
+          classification: newWorkerClassification.trim(),
+          timeIn: newWorkerTimeIn.trim(),
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: [api.logs.get.path, id] });
+      toast({
+        title: "Worker added",
+        description: `${newWorkerName} has been added to this log.`,
+      });
+      setIsAddWorkerOpen(false);
+      setNewWorkerName("");
+      setNewWorkerClassification("");
+      setNewWorkerTimeIn("07:00");
+    } catch {
+      toast({
+        title: "Failed to add worker",
+        description: "Could not add the worker. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleDeleteWorker = async (workerId: number, workerName: string) => {
     try {
@@ -132,9 +179,68 @@ export default function LogDetail() {
 
             {/* Workers List */}
             <div className="space-y-4">
-              <h3 className="text-xl font-bold flex items-center gap-2 px-1">
-                <User className="h-5 w-5 text-primary" /> Worker Log ({log.workers.length})
-              </h3>
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <User className="h-5 w-5 text-primary" /> Worker Log ({log.workers.length})
+                </h3>
+                {canEditWorkers && (
+                  <Dialog open={isAddWorkerOpen} onOpenChange={setIsAddWorkerOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" data-testid="button-add-worker">
+                        <Plus className="h-4 w-4 mr-1" /> Add Worker
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Worker to Log</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="worker-name">Name</Label>
+                          <Input
+                            id="worker-name"
+                            placeholder="Worker name"
+                            value={newWorkerName}
+                            onChange={(e) => setNewWorkerName(e.target.value)}
+                            data-testid="input-worker-name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="worker-classification">Classification</Label>
+                          <Input
+                            id="worker-classification"
+                            placeholder="e.g. Electrician, Carpenter"
+                            value={newWorkerClassification}
+                            onChange={(e) => setNewWorkerClassification(e.target.value)}
+                            data-testid="input-worker-classification"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="worker-time-in">Time In</Label>
+                          <Input
+                            id="worker-time-in"
+                            type="time"
+                            value={newWorkerTimeIn}
+                            onChange={(e) => setNewWorkerTimeIn(e.target.value)}
+                            data-testid="input-worker-time-in"
+                          />
+                        </div>
+                        <Button 
+                          onClick={handleAddWorker} 
+                          className="w-full"
+                          disabled={addWorker.isPending}
+                          data-testid="button-confirm-add-worker"
+                        >
+                          {addWorker.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : null}
+                          Add Worker
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
               
               <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
