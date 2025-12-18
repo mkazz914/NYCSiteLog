@@ -45,6 +45,7 @@ export const insertWorkerSchema = createInsertSchema(workers).omit({ id: true, d
 
 // Schema for updating a worker (partial update of editable fields)
 export const updateWorkerSchema = z.object({
+  timeIn: z.string().optional().nullable(),
   timeOut: z.string().optional().nullable(),
   signatureIn: z.string().optional().nullable(),
   signatureOut: z.string().optional().nullable(),

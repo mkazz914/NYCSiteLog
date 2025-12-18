@@ -33,6 +33,7 @@ export default function LogDetail() {
   
   const [isEditWorkerOpen, setIsEditWorkerOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
+  const [editTimeIn, setEditTimeIn] = useState("");
   const [editTimeOut, setEditTimeOut] = useState("");
   const signatureInRef = useRef<SignatureCanvas | null>(null);
   const signatureOutRef = useRef<SignatureCanvas | null>(null);
@@ -95,6 +96,7 @@ export default function LogDetail() {
 
   const handleEditWorker = (worker: Worker) => {
     setEditingWorker(worker);
+    setEditTimeIn(worker.timeIn || "");
     setEditTimeOut(worker.timeOut || "");
     setIsEditWorkerOpen(true);
   };
@@ -113,6 +115,7 @@ export default function LogDetail() {
       await updateWorker.mutateAsync({
         workerId: editingWorker.id,
         data: {
+          timeIn: editTimeIn || null,
           timeOut: editTimeOut || null,
           signatureIn: signatureIn || null,
           signatureOut: signatureOut || null,
@@ -430,15 +433,27 @@ export default function LogDetail() {
             <DialogTitle>Edit Worker: {editingWorker?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-time-out">Time Out</Label>
-              <Input
-                id="edit-time-out"
-                type="time"
-                value={editTimeOut}
-                onChange={(e) => setEditTimeOut(e.target.value)}
-                data-testid="input-edit-time-out"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-time-in">Time In</Label>
+                <Input
+                  id="edit-time-in"
+                  type="time"
+                  value={editTimeIn}
+                  onChange={(e) => setEditTimeIn(e.target.value)}
+                  data-testid="input-edit-time-in"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-time-out">Time Out</Label>
+                <Input
+                  id="edit-time-out"
+                  type="time"
+                  value={editTimeOut}
+                  onChange={(e) => setEditTimeOut(e.target.value)}
+                  data-testid="input-edit-time-out"
+                />
+              </div>
             </div>
             
             <div className="space-y-2">
