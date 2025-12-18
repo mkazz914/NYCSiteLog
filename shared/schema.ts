@@ -51,6 +51,17 @@ export const updateWorkerSchema = z.object({
   signatureOut: z.string().optional().nullable(),
 });
 
+// Schema for updating a daily log (partial update of project info fields)
+export const updateLogSchema = z.object({
+  primeContractor: z.string().optional(),
+  subcontractor: z.string().optional().nullable(),
+  contractNumber: z.string().optional(),
+  address: z.string().optional(),
+  agency: z.string().optional(),
+  projectNameLocation: z.string().optional(),
+  date: z.string().optional(),
+});
+
 // Combined schema for creating a log with workers
 export const createLogSchema = insertDailyLogSchema.extend({
   workers: z.array(insertWorkerSchema),
@@ -61,4 +72,5 @@ export type InsertDailyLog = z.infer<typeof insertDailyLogSchema>;
 export type Worker = typeof workers.$inferSelect;
 export type InsertWorker = z.infer<typeof insertWorkerSchema>;
 export type UpdateWorker = z.infer<typeof updateWorkerSchema>;
+export type UpdateLog = z.infer<typeof updateLogSchema>;
 export type CreateLogRequest = z.infer<typeof createLogSchema>;
