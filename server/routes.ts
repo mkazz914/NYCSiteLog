@@ -107,33 +107,29 @@ export async function registerRoutes(
       // Add worker rows
       if (log.workers && log.workers.length > 0) {
         log.workers.forEach((worker) => {
-          // Draw text for each worker field
+          // Draw text for each worker field (defaults to black)
           page.drawText(worker.name || "", {
             x: columnXPositions.name,
             y: currentY,
-            size: 10,
-            color: { r: 0, g: 0, b: 0 }
+            size: 10
           });
 
           page.drawText(worker.classification || "", {
             x: columnXPositions.classification,
             y: currentY,
-            size: 10,
-            color: { r: 0, g: 0, b: 0 }
+            size: 10
           });
 
           page.drawText(worker.timeIn || "", {
             x: columnXPositions.timeIn,
             y: currentY,
-            size: 10,
-            color: { r: 0, g: 0, b: 0 }
+            size: 10
           });
 
           page.drawText(worker.timeOut || "", {
             x: columnXPositions.timeOut,
             y: currentY,
-            size: 10,
-            color: { r: 0, g: 0, b: 0 }
+            size: 10
           });
 
           currentY -= rowHeight; // Move to next row
