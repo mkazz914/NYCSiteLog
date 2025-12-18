@@ -14,6 +14,8 @@ export interface IStorage {
   createLog(log: CreateLogRequest): Promise<DailyLog & { workers: Worker[] }>;
   getLogs(): Promise<DailyLog[]>;
   getLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
+  cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
+  deleteWorker(workerId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -49,6 +51,50 @@ export class DatabaseStorage implements IStorage {
     const logWorkers = await db.select().from(workers).where(eq(workers.dailyLogId, id));
     
     return { ...log, workers: logWorkers };
+  }
+
+  async cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined> {
+    const existingLog = await this.getLog(id);
+    if (!existingLog) return undefined;
+
+    return await db.transaction(async (tx) => {
+      // Create new log with same project info but today's date and no verification
+      const [newLog] = await tx.insert(dailyLogs).values({
+        primeContractor: existingLog.primeContractor,
+        subcontractor: existingLog.subcontractor,
+        contractNumber: existingLog.contractNumber,
+        address: existingLog.address,
+        agency: existingLog.agency,
+        projectNameLocation: existingLog.projectNameLocation,
+        date: new Date().toISOString().split('T')[0],
+        contractorRepName: null,
+        contractorRepTitle: null,
+        contractorRepSignature: null,
+        contractorRepDate: null,
+      }).returning();
+
+      // Clone workers with cleared signatures
+      let newWorkers: Worker[] = [];
+      if (existingLog.workers.length > 0) {
+        const workersToInsert = existingLog.workers.map(w => ({
+          dailyLogId: newLog.id,
+          name: w.name,
+          classification: w.classification,
+          timeIn: w.timeIn,
+          signatureIn: null,
+          timeOut: null,
+          signatureOut: null,
+        }));
+        newWorkers = await tx.insert(workers).values(workersToInsert).returning();
+      }
+
+      return { ...newLog, workers: newWorkers };
+    });
+  }
+
+  async deleteWorker(workerId: number): Promise<boolean> {
+    const result = await db.delete(workers).where(eq(workers.id, workerId)).returning();
+    return result.length > 0;
   }
 }
 
