@@ -695,7 +695,7 @@ export default function LogDetail() {
                     className: "w-full h-24",
                     style: { width: "100%", height: "96px" }
                   }}
-                  backgroundColor="white"
+                  backgroundColor="rgba(0,0,0,0)"
                 />
               </div>
               <Button 
@@ -723,7 +723,7 @@ export default function LogDetail() {
                     className: "w-full h-24",
                     style: { width: "100%", height: "96px" }
                   }}
-                  backgroundColor="white"
+                  backgroundColor="rgba(0,0,0,0)"
                 />
               </div>
               <Button 
@@ -793,7 +793,7 @@ export default function LogDetail() {
                     className: "w-full h-32",
                     style: { width: "100%", height: "128px" }
                   }}
-                  backgroundColor="white"
+                  backgroundColor="rgba(0,0,0,0)"
                 />
               </div>
               <Button 
