@@ -7,6 +7,7 @@ import {
   type Worker,
   type InsertWorker,
   type UpdateWorker,
+  type UpdateLog,
   type CreateLogRequest
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -15,6 +16,7 @@ export interface IStorage {
   createLog(log: CreateLogRequest): Promise<DailyLog & { workers: Worker[] }>;
   getLogs(): Promise<DailyLog[]>;
   getLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
+  updateLog(id: number, data: UpdateLog): Promise<DailyLog | undefined>;
   cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
   deleteLog(id: number): Promise<boolean>;
   addWorker(logId: number, worker: InsertWorker): Promise<Worker | undefined>;
