@@ -53,7 +53,6 @@ export async function registerRoutes(
 
     try {
       // Load PDF template
-      // Note: In Replit, attached assets are usually in the root or attached_assets folder
       const templatePath = path.join(process.cwd(), "attached_assets", "NYCDDC_-_Sign_In_Sheet_APP_1766096042760.pdf");
       
       if (!fs.existsSync(templatePath)) {
@@ -64,75 +63,83 @@ export async function registerRoutes(
       const templateBytes = fs.readFileSync(templatePath);
       const pdfDoc = await PDFDocument.load(templateBytes);
       const form = pdfDoc.getForm();
+      const page = pdfDoc.getPage(0);
+      const { width, height } = page.getSize();
 
-      // Debug: Log field names to help mapping
-      const fields = form.getFields();
-      console.log("PDF Fields:", fields.map(f => f.getName()));
-
-      // Helper to safe fill
+      // Helper to safe fill form field
       const safeFill = (name: string, value: string | undefined | null) => {
         if (!value) return;
         try {
           const field = form.getTextField(name);
           if (field) field.setText(value);
         } catch (e) {
-          console.log(`Field ${name} not found or not text`);
+          // Field doesn't exist, continue
         }
       };
 
-      // Map fields (Guesses based on standard naming, will verify with logs)
-      // Based on PDF content:
-      // Prime Contractor, Subcontractor, Contract #, Address, Agency, Project Name/Location, Date
-      
-      // Try exact names from visual inspection if they match field names, 
-      // otherwise we might need to adjust after seeing logs.
-      // Common PDF form names might be "Text1", "undefined", or descriptive.
-      // I'll try descriptive first.
+      // Try to fill form fields for header info
       safeFill("Prime Contractor", log.primeContractor);
       safeFill("Subcontractor", log.subcontractor);
-      safeFill("Contract", log.contractNumber); // or "Contract #"
+      safeFill("Contract", log.contractNumber);
       safeFill("Address", log.address);
       safeFill("Agency", log.agency);
-      safeFill("Project NameLocation", log.projectNameLocation); // or "Project Name"
+      safeFill("Project Name/Location", log.projectNameLocation);
+      safeFill("Project NameLocation", log.projectNameLocation);
       safeFill("Date", log.date ? new Date(log.date).toLocaleDateString() : "");
 
+      safeFill("Name(Print)", log.contractorRepName);
       safeFill("NamePrint", log.contractorRepName);
       safeFill("Title", log.contractorRepTitle);
       safeFill("Date_2", log.contractorRepDate ? new Date(log.contractorRepDate).toLocaleDateString() : "");
 
-      // Embed Contractor Rep Signature
-      if (log.contractorRepSignature) {
-        try {
-          const pngImage = await pdfDoc.embedPng(log.contractorRepSignature);
-          // Need to find where to put it. 
-          // If there is a signature field, we might get its widget rect.
-          // Or just place it at coordinates.
-          // For now, I'll try to find a field named "SignatureContractors Representative"
-          try {
-             const sigField = form.getTextField("SignatureContractors Representative");
-             // If it exists, we can overlay image? 
-             // PDF forms are tricky. 
-             // Simplest for MVP: If field exists, use its bounds.
-             // Otherwise, coordinate guess?
-             // I'll log field names and refine later.
-          } catch (e) {}
-        } catch (e) {
-          console.error("Error embedding rep signature", e);
-        }
+      // Add worker data directly to page as text
+      // Position workers section starting from a calculated Y position
+      // Typical A4/Letter page height ~792pt, workers table usually starts around y=400-450
+      let currentY = 420; // Approximate position for first worker row
+      const columnXPositions = {
+        name: 50,
+        classification: 150,
+        timeIn: 250,
+        timeOut: 350
+      };
+      const rowHeight = 20; // Space between rows
+
+      // Add worker rows
+      if (log.workers && log.workers.length > 0) {
+        log.workers.forEach((worker) => {
+          // Draw text for each worker field
+          page.drawText(worker.name || "", {
+            x: columnXPositions.name,
+            y: currentY,
+            size: 10,
+            color: { r: 0, g: 0, b: 0 }
+          });
+
+          page.drawText(worker.classification || "", {
+            x: columnXPositions.classification,
+            y: currentY,
+            size: 10,
+            color: { r: 0, g: 0, b: 0 }
+          });
+
+          page.drawText(worker.timeIn || "", {
+            x: columnXPositions.timeIn,
+            y: currentY,
+            size: 10,
+            color: { r: 0, g: 0, b: 0 }
+          });
+
+          page.drawText(worker.timeOut || "", {
+            x: columnXPositions.timeOut,
+            y: currentY,
+            size: 10,
+            color: { r: 0, g: 0, b: 0 }
+          });
+
+          currentY -= rowHeight; // Move to next row
+        });
       }
 
-      // Workers
-      // Loop through workers and try to fill "Employees Name Row 1", etc.
-      log.workers.forEach((worker, index) => {
-        const row = index + 1;
-        safeFill(`Employees Name Row ${row}`, worker.name);
-        safeFill(`Classification Row ${row}`, worker.classification);
-        safeFill(`Time In Row ${row}`, worker.timeIn);
-        safeFill(`Time Out Row ${row}`, worker.timeOut);
-        
-        // Signatures would need embedding
-      });
-      
       // Flatten form to make it read-only
       form.flatten();
 
