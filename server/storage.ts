@@ -59,6 +59,27 @@ export class DatabaseStorage implements IStorage {
     return { ...log, workers: logWorkers };
   }
 
+  async updateLog(id: number, data: UpdateLog): Promise<DailyLog | undefined> {
+    const [existing] = await db.select().from(dailyLogs).where(eq(dailyLogs.id, id));
+    if (!existing) return undefined;
+
+    const updateData: Partial<DailyLog> = {};
+    if (data.primeContractor !== undefined) updateData.primeContractor = data.primeContractor;
+    if (data.subcontractor !== undefined) updateData.subcontractor = data.subcontractor;
+    if (data.contractNumber !== undefined) updateData.contractNumber = data.contractNumber;
+    if (data.address !== undefined) updateData.address = data.address;
+    if (data.agency !== undefined) updateData.agency = data.agency;
+    if (data.projectNameLocation !== undefined) updateData.projectNameLocation = data.projectNameLocation;
+    if (data.date !== undefined) updateData.date = data.date;
+
+    const [updated] = await db.update(dailyLogs)
+      .set(updateData)
+      .where(eq(dailyLogs.id, id))
+      .returning();
+
+    return updated;
+  }
+
   async cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined> {
     const existingLog = await this.getLog(id);
     if (!existingLog) return undefined;
