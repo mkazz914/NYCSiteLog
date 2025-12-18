@@ -15,6 +15,7 @@ export interface IStorage {
   getLogs(): Promise<DailyLog[]>;
   getLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
   cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
+  deleteLog(id: number): Promise<boolean>;
   deleteWorker(workerId: number): Promise<boolean>;
 }
 
@@ -89,6 +90,14 @@ export class DatabaseStorage implements IStorage {
       }
 
       return { ...newLog, workers: newWorkers };
+    });
+  }
+
+  async deleteLog(id: number): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      await tx.delete(workers).where(eq(workers.dailyLogId, id));
+      const result = await tx.delete(dailyLogs).where(eq(dailyLogs.id, id)).returning();
+      return result.length > 0;
     });
   }
 

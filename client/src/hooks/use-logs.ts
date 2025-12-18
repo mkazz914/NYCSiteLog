@@ -96,6 +96,27 @@ export function useCloneLog() {
   });
 }
 
+export function useDeleteLog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const url = buildUrl(api.logs.delete.path, { id });
+      const res = await fetch(url, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to delete log');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.logs.list.path] });
+    },
+  });
+}
+
 export function useDeleteWorker() {
   const queryClient = useQueryClient();
   return useMutation({

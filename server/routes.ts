@@ -250,6 +250,19 @@ export async function registerRoutes(
     res.status(201).json(clonedLog);
   });
 
+  // Delete Log (only unsigned logs can be deleted)
+  app.delete(api.logs.delete.path, async (req, res) => {
+    const log = await storage.getLog(Number(req.params.id));
+    if (!log) {
+      return res.status(404).json({ message: 'Log not found' });
+    }
+    if (log.contractorRepSignature) {
+      return res.status(400).json({ message: 'Cannot delete a signed log' });
+    }
+    const success = await storage.deleteLog(Number(req.params.id));
+    res.json({ success });
+  });
+
   // Delete Worker
   app.delete(api.workers.delete.path, async (req, res) => {
     const success = await storage.deleteWorker(Number(req.params.id));

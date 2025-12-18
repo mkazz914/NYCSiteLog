@@ -1,9 +1,9 @@
-import { useLogs, useCloneLog } from "@/hooks/use-logs";
+import { useLogs, useCloneLog, useDeleteLog } from "@/hooks/use-logs";
 import { Header } from "@/components/Header";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, FileText, Calendar, Loader2, ArrowRight, Copy, FolderOpen, ChevronDown } from "lucide-react";
+import { Plus, FileText, Calendar, Loader2, ArrowRight, Copy, FolderOpen, ChevronDown, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useMemo, useState } from "react";
@@ -16,6 +16,7 @@ type Log = {
   primeContractor: string;
   agency: string;
   date: string;
+  contractorRepSignature: string | null;
 };
 
 type JobGroup = {
@@ -31,6 +32,7 @@ type JobGroup = {
 export default function Home() {
   const { data: logs, isLoading, error } = useLogs();
   const cloneLog = useCloneLog();
+  const deleteLog = useDeleteLog();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
@@ -98,6 +100,24 @@ export default function Home() {
       toast({
         title: "Clone failed",
         description: "Could not clone the log. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (e: { preventDefault: () => void; stopPropagation: () => void }, logId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await deleteLog.mutateAsync(logId);
+      toast({
+        title: "Log deleted",
+        description: "The log has been removed.",
+      });
+    } catch (err) {
+      toast({
+        title: "Delete failed",
+        description: (err as Error).message || "Could not delete the log.",
         variant: "destructive",
       });
     }
@@ -188,22 +208,35 @@ export default function Home() {
                               data-testid={`card-log-${log.id}`}
                             >
                               <CardContent className="p-4">
-                                <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center justify-between gap-2 mb-2">
                                   <div className="flex items-center gap-2 text-muted-foreground">
                                     <Calendar className="h-4 w-4" />
                                     <span className="font-medium text-foreground">
                                       {format(new Date(log.date), "MMMM d, yyyy")}
                                     </span>
                                   </div>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={(e) => handleClone(e, log.id)}
-                                    disabled={cloneLog.isPending}
-                                    data-testid={`button-clone-log-${log.id}`}
-                                  >
-                                    <Copy className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={(e) => handleClone(e, log.id)}
+                                      disabled={cloneLog.isPending}
+                                      data-testid={`button-clone-log-${log.id}`}
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+                                    {!log.contractorRepSignature && (
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={(e) => handleDelete(e, log.id)}
+                                        disabled={deleteLog.isPending}
+                                        data-testid={`button-delete-log-${log.id}`}
+                                      >
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="flex items-center text-primary text-sm font-semibold group-hover:translate-x-1 transition-transform">
                                   View Details <ArrowRight className="ml-1 h-3.5 w-3.5" />
