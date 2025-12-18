@@ -213,10 +213,10 @@ export async function registerRoutes(
           if (base64Data) {
             const imageBytes = Buffer.from(base64Data, 'base64');
             const image = await pdfDoc.embedPng(imageBytes);
-            // Place above the signature line (around 80-90 points from bottom is typically the signature line, so place at 120-130)
+            // Place just above the signature line (Contractors Representative)
             page.drawImage(image, {
               x: 50,
-              y: 120,
+              y: 70,
               width: 80,
               height: 40
             });
