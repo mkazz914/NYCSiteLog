@@ -5,72 +5,72 @@
 @tailwind utilities;
 
 :root {
-  /* Construction-inspired palette: Safety Orange & Concrete Gray */
+  /* Construction-inspired palette: Maroon & Gold */
   --font-display: 'Oswald', sans-serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   /* Light Theme */
-  --background: 210 20% 98%;
-  --foreground: 220 13% 18%; /* Dark Slate */
+  --background: 0 0% 99%;
+  --foreground: 0 0% 15%; /* Dark text */
   
   --card: 0 0% 100%;
-  --card-foreground: 220 13% 18%;
+  --card-foreground: 0 0% 15%;
   
   --popover: 0 0% 100%;
-  --popover-foreground: 220 13% 18%;
+  --popover-foreground: 0 0% 15%;
   
-  --primary: 24 95% 53%; /* Safety Orange */
+  --primary: 350 76% 35%; /* Maroon */
   --primary-foreground: 0 0% 100%;
   
-  --secondary: 210 10% 90%; /* Concrete light */
-  --secondary-foreground: 220 13% 18%;
+  --secondary: 51 100% 50%; /* Gold */
+  --secondary-foreground: 0 0% 20%;
   
-  --muted: 210 20% 96%;
-  --muted-foreground: 215 16% 47%;
+  --muted: 0 0% 90%;
+  --muted-foreground: 0 0% 50%;
   
-  --accent: 210 20% 94%;
-  --accent-foreground: 220 13% 18%;
+  --accent: 51 100% 50%; /* Gold */
+  --accent-foreground: 0 0% 20%;
   
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 98%;
 
-  --border: 214 20% 90%;
-  --input: 214 20% 90%;
-  --ring: 24 95% 53%;
+  --border: 0 0% 85%;
+  --input: 0 0% 95%;
+  --ring: 350 76% 35%;
   
   --radius: 0.75rem;
 }
 
 .dark {
-  /* Dark Theme - Industrial Night */
-  --background: 220 15% 10%;
-  --foreground: 210 20% 98%;
+  /* Dark Theme - Maroon & Gold */
+  --background: 0 0% 10%;
+  --foreground: 0 0% 95%;
   
-  --card: 220 15% 13%;
-  --card-foreground: 210 20% 98%;
+  --card: 0 0% 12%;
+  --card-foreground: 0 0% 95%;
   
-  --popover: 220 15% 13%;
-  --popover-foreground: 210 20% 98%;
+  --popover: 0 0% 12%;
+  --popover-foreground: 0 0% 95%;
   
-  --primary: 24 95% 53%; /* Keep safety orange popping */
+  --primary: 350 76% 45%; /* Brighter maroon for dark mode */
   --primary-foreground: 0 0% 100%;
   
-  --secondary: 217 19% 27%;
-  --secondary-foreground: 210 20% 98%;
+  --secondary: 51 100% 55%; /* Bright gold */
+  --secondary-foreground: 0 0% 20%;
   
-  --muted: 217 19% 27%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 0 0% 30%;
+  --muted-foreground: 0 0% 70%;
   
-  --accent: 217 19% 27%;
-  --accent-foreground: 210 20% 98%;
+  --accent: 51 100% 55%; /* Gold */
+  --accent-foreground: 0 0% 20%;
   
-  --destructive: 0 62% 30%;
-  --destructive-foreground: 210 20% 98%;
+  --destructive: 0 62% 45%;
+  --destructive-foreground: 0 0% 98%;
   
-  --border: 217 19% 27%;
-  --input: 217 19% 27%;
-  --ring: 24 95% 53%;
+  --border: 0 0% 25%;
+  --input: 0 0% 20%;
+  --ring: 350 76% 45%;
 }
 
 @layer base {
