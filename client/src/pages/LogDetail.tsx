@@ -1,4 +1,4 @@
-import { useLog, useExportPdf, useDeleteWorker, useAddWorker, useUpdateWorker, type Worker } from "@/hooks/use-logs";
+import { useLog, useExportPdf, useDeleteWorker, useAddWorker, useUpdateWorker, useUpdateLog, type Worker } from "@/hooks/use-logs";
 import { Header } from "@/components/Header";
 import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,19 @@ export default function LogDetail() {
   const deleteWorker = useDeleteWorker();
   const addWorker = useAddWorker();
   const updateWorker = useUpdateWorker();
+  const updateLog = useUpdateLog();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
   const [isAddWorkerOpen, setIsAddWorkerOpen] = useState(false);
+  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
+  const [editPrimeContractor, setEditPrimeContractor] = useState("");
+  const [editSubcontractor, setEditSubcontractor] = useState("");
+  const [editContractNumber, setEditContractNumber] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editAgency, setEditAgency] = useState("");
+  const [editProjectNameLocation, setEditProjectNameLocation] = useState("");
+  const [editDate, setEditDate] = useState("");
   const [newWorkerName, setNewWorkerName] = useState("");
   const [newWorkerClassification, setNewWorkerClassification] = useState("");
   const [newWorkerTimeIn, setNewWorkerTimeIn] = useState("07:00");
@@ -93,6 +102,58 @@ export default function LogDetail() {
   };
 
   const canEditWorkers = log && !log.contractorRepSignature;
+
+  const handleOpenEditProject = () => {
+    if (!log) return;
+    setEditPrimeContractor(log.primeContractor);
+    setEditSubcontractor(log.subcontractor || "");
+    setEditContractNumber(log.contractNumber);
+    setEditAddress(log.address);
+    setEditAgency(log.agency);
+    setEditProjectNameLocation(log.projectNameLocation);
+    setEditDate(log.date);
+    setIsEditProjectOpen(true);
+  };
+
+  const handleSaveProjectEdit = async () => {
+    if (!log) return;
+    if (!editPrimeContractor.trim() || !editContractNumber.trim() || !editAddress.trim() || !editAgency.trim() || !editProjectNameLocation.trim() || !editDate.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await updateLog.mutateAsync({
+        logId: id,
+        data: {
+          primeContractor: editPrimeContractor.trim(),
+          subcontractor: editSubcontractor.trim() || null,
+          contractNumber: editContractNumber.trim(),
+          address: editAddress.trim(),
+          agency: editAgency.trim(),
+          projectNameLocation: editProjectNameLocation.trim(),
+          date: editDate.trim(),
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: [api.logs.get.path, id] });
+      toast({
+        title: "Project updated",
+        description: "Project information has been saved.",
+      });
+      setIsEditProjectOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save the project information.";
+      toast({
+        title: "Failed to update project",
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleEditWorker = (worker: Worker) => {
     setEditingWorker(worker);
@@ -213,10 +274,98 @@ export default function LogDetail() {
             
             {/* Project Details */}
             <Card>
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-4 flex flex-row items-center justify-between gap-2">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Briefcase className="h-5 w-5 text-primary" /> Project Information
                 </CardTitle>
+                {canEditWorkers && (
+                  <Dialog open={isEditProjectOpen} onOpenChange={setIsEditProjectOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" onClick={handleOpenEditProject} data-testid="button-edit-project">
+                        <Edit className="h-4 w-4 mr-1" /> Edit
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>Edit Project Information</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-prime-contractor">Prime Contractor</Label>
+                          <Input
+                            id="edit-prime-contractor"
+                            value={editPrimeContractor}
+                            onChange={(e) => setEditPrimeContractor(e.target.value)}
+                            data-testid="input-edit-prime-contractor"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-subcontractor">Subcontractor</Label>
+                          <Input
+                            id="edit-subcontractor"
+                            value={editSubcontractor}
+                            onChange={(e) => setEditSubcontractor(e.target.value)}
+                            data-testid="input-edit-subcontractor"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-contract-number">Contract Number</Label>
+                          <Input
+                            id="edit-contract-number"
+                            value={editContractNumber}
+                            onChange={(e) => setEditContractNumber(e.target.value)}
+                            data-testid="input-edit-contract-number"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-agency">Agency</Label>
+                          <Input
+                            id="edit-agency"
+                            value={editAgency}
+                            onChange={(e) => setEditAgency(e.target.value)}
+                            data-testid="input-edit-agency"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-address">Address</Label>
+                          <Input
+                            id="edit-address"
+                            value={editAddress}
+                            onChange={(e) => setEditAddress(e.target.value)}
+                            data-testid="input-edit-address"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-project-name">Project Name/Location</Label>
+                          <Input
+                            id="edit-project-name"
+                            value={editProjectNameLocation}
+                            onChange={(e) => setEditProjectNameLocation(e.target.value)}
+                            data-testid="input-edit-project-name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-date">Date</Label>
+                          <Input
+                            id="edit-date"
+                            type="date"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            data-testid="input-edit-date"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setIsEditProjectOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSaveProjectEdit} disabled={updateLog.isPending} data-testid="button-save-project">
+                          {updateLog.isPending ? "Saving..." : "Save Changes"}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
                 <div>
