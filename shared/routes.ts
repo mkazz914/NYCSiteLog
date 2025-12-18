@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createLogSchema, dailyLogs, workers, insertWorkerSchema, type CreateLogRequest } from './schema';
+import { createLogSchema, dailyLogs, workers, insertWorkerSchema, updateWorkerSchema, type CreateLogRequest } from './schema';
 
 export type { CreateLogRequest };
 
@@ -74,6 +74,16 @@ export const api = {
       input: insertWorkerSchema,
       responses: {
         201: z.custom<typeof workers.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/workers/:id',
+      input: updateWorkerSchema,
+      responses: {
+        200: z.custom<typeof workers.$inferSelect>(),
         400: errorSchemas.validation,
         404: errorSchemas.notFound,
       },

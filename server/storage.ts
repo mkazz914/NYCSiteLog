@@ -6,6 +6,7 @@ import {
   type InsertDailyLog,
   type Worker,
   type InsertWorker,
+  type UpdateWorker,
   type CreateLogRequest
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -17,6 +18,7 @@ export interface IStorage {
   cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
   deleteLog(id: number): Promise<boolean>;
   addWorker(logId: number, worker: InsertWorker): Promise<Worker | undefined>;
+  updateWorker(workerId: number, data: UpdateWorker): Promise<Worker | undefined>;
   deleteWorker(workerId: number): Promise<boolean>;
 }
 
@@ -112,6 +114,23 @@ export class DatabaseStorage implements IStorage {
     }).returning();
     
     return newWorker;
+  }
+
+  async updateWorker(workerId: number, data: UpdateWorker): Promise<Worker | undefined> {
+    const [existing] = await db.select().from(workers).where(eq(workers.id, workerId));
+    if (!existing) return undefined;
+    
+    const updateData: Partial<Worker> = {};
+    if (data.timeOut !== undefined) updateData.timeOut = data.timeOut;
+    if (data.signatureIn !== undefined) updateData.signatureIn = data.signatureIn;
+    if (data.signatureOut !== undefined) updateData.signatureOut = data.signatureOut;
+    
+    const [updated] = await db.update(workers)
+      .set(updateData)
+      .where(eq(workers.id, workerId))
+      .returning();
+    
+    return updated;
   }
 
   async deleteWorker(workerId: number): Promise<boolean> {

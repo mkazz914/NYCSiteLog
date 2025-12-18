@@ -6,6 +6,9 @@ import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import { PDFDocument } from "pdf-lib";
+import { db } from "./db";
+import { workers } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -281,6 +284,40 @@ export async function registerRoutes(
         return res.status(404).json({ message: 'Log not found' });
       }
       res.status(201).json(worker);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      throw err;
+    }
+  });
+
+  // Update Worker (time-out and signatures)
+  app.patch(api.workers.update.path, async (req, res) => {
+    try {
+      const workerId = Number(req.params.id);
+      
+      // Check if worker exists
+      const [workerRecord] = await db.select().from(workers).where(eq(workers.id, workerId));
+      if (!workerRecord) {
+        return res.status(404).json({ message: 'Worker not found' });
+      }
+      
+      // Check if parent log is signed (immutable)
+      const log = await storage.getLog(workerRecord.dailyLogId);
+      if (log?.contractorRepSignature) {
+        return res.status(400).json({ message: 'Cannot update workers on a signed log' });
+      }
+      
+      const input = api.workers.update.input.parse(req.body);
+      const updated = await storage.updateWorker(workerId, input);
+      if (!updated) {
+        return res.status(404).json({ message: 'Worker not found' });
+      }
+      res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({

@@ -43,6 +43,13 @@ export const workersRelations = relations(workers, ({ one }) => ({
 export const insertDailyLogSchema = createInsertSchema(dailyLogs).omit({ id: true });
 export const insertWorkerSchema = createInsertSchema(workers).omit({ id: true, dailyLogId: true });
 
+// Schema for updating a worker (partial update of editable fields)
+export const updateWorkerSchema = z.object({
+  timeOut: z.string().optional().nullable(),
+  signatureIn: z.string().optional().nullable(),
+  signatureOut: z.string().optional().nullable(),
+});
+
 // Combined schema for creating a log with workers
 export const createLogSchema = insertDailyLogSchema.extend({
   workers: z.array(insertWorkerSchema),
@@ -52,4 +59,5 @@ export type DailyLog = typeof dailyLogs.$inferSelect;
 export type InsertDailyLog = z.infer<typeof insertDailyLogSchema>;
 export type Worker = typeof workers.$inferSelect;
 export type InsertWorker = z.infer<typeof insertWorkerSchema>;
+export type UpdateWorker = z.infer<typeof updateWorkerSchema>;
 export type CreateLogRequest = z.infer<typeof createLogSchema>;

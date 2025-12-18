@@ -1,18 +1,19 @@
-import { useLog, useExportPdf, useDeleteWorker, useAddWorker } from "@/hooks/use-logs";
+import { useLog, useExportPdf, useDeleteWorker, useAddWorker, useUpdateWorker, type Worker } from "@/hooks/use-logs";
 import { Header } from "@/components/Header";
 import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer, Trash2, Plus } from "lucide-react";
+import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer, Trash2, Plus, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import SignatureCanvas from "react-signature-canvas";
 
 export default function LogDetail() {
   const [, params] = useRoute("/logs/:id");
@@ -21,6 +22,7 @@ export default function LogDetail() {
   const exportPdf = useExportPdf(id);
   const deleteWorker = useDeleteWorker();
   const addWorker = useAddWorker();
+  const updateWorker = useUpdateWorker();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -28,6 +30,12 @@ export default function LogDetail() {
   const [newWorkerName, setNewWorkerName] = useState("");
   const [newWorkerClassification, setNewWorkerClassification] = useState("");
   const [newWorkerTimeIn, setNewWorkerTimeIn] = useState("07:00");
+  
+  const [isEditWorkerOpen, setIsEditWorkerOpen] = useState(false);
+  const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
+  const [editTimeOut, setEditTimeOut] = useState("");
+  const signatureInRef = useRef<SignatureCanvas | null>(null);
+  const signatureOutRef = useRef<SignatureCanvas | null>(null);
 
   const handleAddWorker = async () => {
     if (!newWorkerName.trim() || !newWorkerClassification.trim() || !newWorkerTimeIn.trim()) {
@@ -84,6 +92,58 @@ export default function LogDetail() {
   };
 
   const canEditWorkers = log && !log.contractorRepSignature;
+
+  const handleEditWorker = (worker: Worker) => {
+    setEditingWorker(worker);
+    setEditTimeOut(worker.timeOut || "");
+    setIsEditWorkerOpen(true);
+  };
+
+  const handleSaveWorkerEdit = async () => {
+    if (!editingWorker) return;
+    
+    try {
+      const signatureIn = signatureInRef.current?.isEmpty() 
+        ? editingWorker.signatureIn 
+        : signatureInRef.current?.toDataURL("image/png");
+      const signatureOut = signatureOutRef.current?.isEmpty() 
+        ? editingWorker.signatureOut 
+        : signatureOutRef.current?.toDataURL("image/png");
+      
+      await updateWorker.mutateAsync({
+        workerId: editingWorker.id,
+        data: {
+          timeOut: editTimeOut || null,
+          signatureIn: signatureIn || null,
+          signatureOut: signatureOut || null,
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: [api.logs.get.path, id] });
+      toast({
+        title: "Worker updated",
+        description: `${editingWorker.name}'s information has been saved.`,
+      });
+      setIsEditWorkerOpen(false);
+      setEditingWorker(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save the worker information.";
+      if (message.includes("signed log")) {
+        queryClient.invalidateQueries({ queryKey: [api.logs.get.path, id] });
+        toast({
+          title: "Log is now locked",
+          description: "This log has been signed and can no longer be edited.",
+          variant: "destructive",
+        });
+        setIsEditWorkerOpen(false);
+      } else {
+        toast({
+          title: "Failed to update worker",
+          description: message,
+          variant: "destructive",
+        });
+      }
+    }
+  };
 
   const handleEmail = () => {
     if (!log) return;
@@ -282,15 +342,25 @@ export default function LogDetail() {
                           </td>
                           {canEditWorkers && (
                             <td className="px-6 py-4 text-center">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => handleDeleteWorker(worker.id, worker.name)}
-                                disabled={deleteWorker.isPending}
-                                data-testid={`button-delete-worker-${worker.id}`}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => handleEditWorker(worker)}
+                                  data-testid={`button-edit-worker-${worker.id}`}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteWorker(worker.id, worker.name)}
+                                  disabled={deleteWorker.isPending}
+                                  data-testid={`button-delete-worker-${worker.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
                             </td>
                           )}
                         </tr>
@@ -350,6 +420,97 @@ export default function LogDetail() {
           
         </div>
       </main>
+
+      <Dialog open={isEditWorkerOpen} onOpenChange={(open) => {
+        setIsEditWorkerOpen(open);
+        if (!open) setEditingWorker(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Worker: {editingWorker?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-time-out">Time Out</Label>
+              <Input
+                id="edit-time-out"
+                type="time"
+                value={editTimeOut}
+                onChange={(e) => setEditTimeOut(e.target.value)}
+                data-testid="input-edit-time-out"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Sign In Signature</Label>
+              <div className="border rounded-lg bg-white">
+                {editingWorker?.signatureIn && (
+                  <div className="p-2 bg-muted/30 border-b">
+                    <img src={editingWorker.signatureIn} alt="Current signature" className="h-12 object-contain" />
+                    <span className="text-xs text-muted-foreground">Current signature (draw below to replace)</span>
+                  </div>
+                )}
+                <SignatureCanvas
+                  ref={signatureInRef}
+                  canvasProps={{
+                    className: "w-full h-24",
+                    style: { width: "100%", height: "96px" }
+                  }}
+                  backgroundColor="white"
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => signatureInRef.current?.clear()}
+                data-testid="button-clear-signature-in"
+              >
+                Clear
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Sign Out Signature</Label>
+              <div className="border rounded-lg bg-white">
+                {editingWorker?.signatureOut && (
+                  <div className="p-2 bg-muted/30 border-b">
+                    <img src={editingWorker.signatureOut} alt="Current signature" className="h-12 object-contain" />
+                    <span className="text-xs text-muted-foreground">Current signature (draw below to replace)</span>
+                  </div>
+                )}
+                <SignatureCanvas
+                  ref={signatureOutRef}
+                  canvasProps={{
+                    className: "w-full h-24",
+                    style: { width: "100%", height: "96px" }
+                  }}
+                  backgroundColor="white"
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => signatureOutRef.current?.clear()}
+                data-testid="button-clear-signature-out"
+              >
+                Clear
+              </Button>
+            </div>
+
+            <Button 
+              onClick={handleSaveWorkerEdit} 
+              className="w-full"
+              disabled={updateWorker.isPending}
+              data-testid="button-save-worker-edit"
+            >
+              {updateWorker.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
