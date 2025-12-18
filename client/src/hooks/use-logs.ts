@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { type CreateLogRequest } from "@shared/routes";
-import { dailyLogs, workers, type InsertWorker, type UpdateWorker } from "@shared/schema";
+import { dailyLogs, workers, type InsertWorker, type UpdateWorker, type UpdateLog } from "@shared/schema";
 
 // Type inference from schema
 export type DailyLog = typeof dailyLogs.$inferSelect;
@@ -177,6 +177,30 @@ export function useUpdateWorker() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.logs.get.path] });
+    },
+  });
+}
+
+export function useUpdateLog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ logId, data }: { logId: number; data: UpdateLog }) => {
+      const url = buildUrl(api.logs.update.path, { id: logId });
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to update log');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.logs.get.path] });
+      queryClient.invalidateQueries({ queryKey: [api.logs.list.path] });
     },
   });
 }
