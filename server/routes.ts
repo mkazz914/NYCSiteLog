@@ -93,47 +93,87 @@ export async function registerRoutes(
       safeFill("Date_2", log.contractorRepDate ? new Date(log.contractorRepDate).toLocaleDateString() : "");
 
       // Add worker data directly to page as text
-      // Position workers section starting from a calculated Y position
-      // Typical A4/Letter page height ~792pt, workers table usually starts around y=400-450
-      let currentY = 420; // Approximate position for first worker row
+      // PDF page height is typically 792pt, need to work from top down
+      let currentY = 500; // Start position for worker rows
       const columnXPositions = {
-        name: 50,
-        classification: 150,
-        timeIn: 250,
-        timeOut: 350
+        name: 40,
+        classification: 130,
+        timeIn: 240,
+        timeOut: 320
       };
-      const rowHeight = 20; // Space between rows
+      const rowHeight = 25; // Space between rows to fit signatures
 
-      // Add worker rows
+      // Add worker rows with signatures
       if (log.workers && log.workers.length > 0) {
-        log.workers.forEach((worker) => {
-          // Draw text for each worker field (defaults to black)
+        for (let i = 0; i < log.workers.length && i < 15; i++) {
+          const worker = log.workers[i];
+          
+          // Draw text fields
           page.drawText(worker.name || "", {
             x: columnXPositions.name,
             y: currentY,
-            size: 10
+            size: 9
           });
 
           page.drawText(worker.classification || "", {
             x: columnXPositions.classification,
             y: currentY,
-            size: 10
+            size: 9
           });
 
           page.drawText(worker.timeIn || "", {
             x: columnXPositions.timeIn,
             y: currentY,
-            size: 10
+            size: 9
           });
 
           page.drawText(worker.timeOut || "", {
             x: columnXPositions.timeOut,
             y: currentY,
-            size: 10
+            size: 9
           });
 
+          // Embed signatures if they exist
+          try {
+            if (worker.signatureIn && worker.signatureIn.startsWith('data:image')) {
+              const base64Data = worker.signatureIn.split(',')[1];
+              if (base64Data) {
+                const imageBytes = Buffer.from(base64Data, 'base64');
+                const image = await pdfDoc.embedPng(imageBytes);
+                page.drawImage(image, {
+                  x: columnXPositions.timeIn - 20,
+                  y: currentY - 15,
+                  width: 25,
+                  height: 15
+                });
+              }
+            }
+          } catch (e) {
+            console.log("Could not embed signature in");
+          }
+
           currentY -= rowHeight; // Move to next row
-        });
+        }
+      }
+
+      // Embed contractor representative signature if exists
+      try {
+        if (log.contractorRepSignature && log.contractorRepSignature.startsWith('data:image')) {
+          const base64Data = log.contractorRepSignature.split(',')[1];
+          if (base64Data) {
+            const imageBytes = Buffer.from(base64Data, 'base64');
+            const image = await pdfDoc.embedPng(imageBytes);
+            // Place at signature field location (bottom left, typically)
+            page.drawImage(image, {
+              x: 50,
+              y: 50,
+              width: 80,
+              height: 40
+            });
+          }
+        }
+      } catch (e) {
+        console.log("Could not embed contractor rep signature");
       }
 
       // Flatten form to make it read-only
