@@ -2,16 +2,87 @@ import { useLogs, useCloneLog } from "@/hooks/use-logs";
 import { Header } from "@/components/Header";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Plus, FileText, Calendar, MapPin, Building2, Loader2, ArrowRight, Copy } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Plus, FileText, Calendar, Loader2, ArrowRight, Copy, FolderOpen, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+
+type Log = {
+  id: number;
+  contractNumber: string;
+  projectNameLocation: string;
+  primeContractor: string;
+  agency: string;
+  date: string;
+};
+
+type JobGroup = {
+  key: string;
+  contractNumber: string;
+  projectName: string;
+  primeContractor: string;
+  agency: string;
+  logs: Log[];
+  latestDate: Date;
+};
 
 export default function Home() {
   const { data: logs, isLoading, error } = useLogs();
   const cloneLog = useCloneLog();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
+
+  const jobGroups = useMemo(() => {
+    if (!logs || logs.length === 0) return [];
+
+    const groupMap = new Map<string, JobGroup>();
+
+    logs.forEach((log) => {
+      const key = `${log.contractNumber}-${log.projectNameLocation}`;
+      const logDate = new Date(log.date);
+
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          key,
+          contractNumber: log.contractNumber,
+          projectName: log.projectNameLocation,
+          primeContractor: log.primeContractor,
+          agency: log.agency,
+          logs: [],
+          latestDate: logDate,
+        });
+      }
+
+      const group = groupMap.get(key)!;
+      group.logs.push(log as Log);
+      if (logDate > group.latestDate) {
+        group.latestDate = logDate;
+      }
+    });
+
+    groupMap.forEach((group) => {
+      group.logs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
+
+    return Array.from(groupMap.values()).sort(
+      (a, b) => b.latestDate.getTime() - a.latestDate.getTime()
+    );
+  }, [logs]);
+
+  const toggleFolder = (key: string) => {
+    setOpenFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   const handleClone = async (e: { preventDefault: () => void; stopPropagation: () => void }, logId: number) => {
     e.preventDefault();
@@ -37,7 +108,6 @@ export default function Home() {
       <Header />
 
       <main className="container px-4 sm:px-8 py-12 max-w-7xl mx-auto">
-        {/* Hero Section */}
         <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <h2 className="text-4xl font-bold tracking-tight text-foreground mb-2">Daily Logs</h2>
@@ -52,7 +122,6 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Content State Handling */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
@@ -63,7 +132,7 @@ export default function Home() {
             <p className="text-destructive font-semibold">Error loading logs</p>
             <p className="text-sm text-destructive/80 mt-1">{(error as Error).message}</p>
           </div>
-        ) : logs?.length === 0 ? (
+        ) : jobGroups.length === 0 ? (
           <div className="text-center py-20 border-2 border-dashed rounded-2xl bg-muted/30">
             <div className="bg-background w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border shadow-sm">
               <FileText className="h-8 w-8 text-muted-foreground" />
@@ -77,56 +146,78 @@ export default function Home() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {logs?.map((log) => (
-              <Link key={log.id} href={`/logs/${log.id}`}>
-                <Card className="group cursor-pointer hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 h-full flex flex-col">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="bg-secondary/50 p-2 rounded-md group-hover:bg-primary/10 transition-colors">
-                        <FileText className="h-5 w-5 text-primary" />
-                      </div>
-                      <span className="text-xs font-mono font-medium text-muted-foreground bg-muted px-2 py-1 rounded">
-                        #{log.contractNumber}
-                      </span>
+          <div className="space-y-4">
+            {jobGroups.map((group) => {
+              const isOpen = openFolders.has(group.key);
+              return (
+                <Card key={group.key} className="overflow-visible" data-testid={`folder-job-${group.contractNumber}`}>
+                  <div
+                    className="flex items-center gap-4 p-4 cursor-pointer hover-elevate rounded-md"
+                    onClick={() => toggleFolder(group.key)}
+                  >
+                    <div className="bg-primary/10 p-2.5 rounded-md">
+                      <FolderOpen className="h-5 w-5 text-primary" />
                     </div>
-                    <CardTitle className="text-xl leading-tight line-clamp-2">
-                      {log.projectNameLocation}
-                    </CardTitle>
-                    <CardDescription className="flex items-center gap-1.5 mt-2 text-foreground/70">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {format(new Date(log.date), "MMMM d, yyyy")}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="mt-auto pt-0">
-                    <div className="space-y-2 text-sm text-muted-foreground border-t pt-4 mt-2">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-3.5 w-3.5" />
-                        <span className="truncate">{log.primeContractor}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-lg truncate">{group.projectName}</h3>
+                        <Badge variant="secondary" className="text-xs font-mono">
+                          #{group.contractNumber}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {group.logs.length} {group.logs.length === 1 ? "log" : "logs"}
+                        </Badge>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-3.5 w-3.5" />
-                        <span className="truncate">{log.agency}</span>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {group.primeContractor} - {group.agency}
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </div>
+                  {isOpen && (
+                    <div className="border-t px-4 py-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {group.logs.map((log) => (
+                          <Link key={log.id} href={`/logs/${log.id}`}>
+                            <Card
+                              className="group cursor-pointer hover:border-primary/50 hover:shadow-md transition-all duration-200 h-full"
+                              data-testid={`card-log-${log.id}`}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    <Calendar className="h-4 w-4" />
+                                    <span className="font-medium text-foreground">
+                                      {format(new Date(log.date), "MMMM d, yyyy")}
+                                    </span>
+                                  </div>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={(e) => handleClone(e, log.id)}
+                                    disabled={cloneLog.isPending}
+                                    data-testid={`button-clone-log-${log.id}`}
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                <div className="flex items-center text-primary text-sm font-semibold group-hover:translate-x-1 transition-transform">
+                                  View Details <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </Link>
+                        ))}
                       </div>
                     </div>
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="flex items-center text-primary text-sm font-semibold group-hover:translate-x-1 transition-transform">
-                        View Details <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => handleClone(e, log.id)}
-                        disabled={cloneLog.isPending}
-                        data-testid={`button-clone-log-${log.id}`}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
+                  )}
                 </Card>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
