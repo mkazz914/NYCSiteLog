@@ -1,0 +1,210 @@
+import { useLog, useExportPdf } from "@/hooks/use-logs";
+import { Header } from "@/components/Header";
+import { useRoute } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer } from "lucide-react";
+import { format } from "date-fns";
+import { Separator } from "@/components/ui/separator";
+
+export default function LogDetail() {
+  const [, params] = useRoute("/logs/:id");
+  const id = parseInt(params?.id || "0");
+  const { data: log, isLoading, error } = useLog(id);
+  const exportPdf = useExportPdf(id);
+
+  const handleEmail = () => {
+    if (!log) return;
+    const subject = encodeURIComponent(`Daily Sign In Sheet - ${log.date} - ${log.projectNameLocation}`);
+    const body = encodeURIComponent(`Attached is the daily sign in sheet for ${log.projectNameLocation} on ${log.date}.\n\nPlease find the PDF attached.`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-12 w-12 text-primary animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !log) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+          <h2 className="text-2xl font-bold text-destructive mb-2">Log Not Found</h2>
+          <p className="text-muted-foreground">The requested daily log could not be found.</p>
+          <Button className="mt-4" onClick={() => window.history.back()}>Go Back</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background pb-20">
+      <Header />
+      
+      <main className="container max-w-5xl mx-auto px-4 sm:px-8 py-10">
+        
+        {/* Actions Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <div className="flex items-center gap-2 text-muted-foreground mb-1">
+              <span className="bg-muted px-2 py-0.5 rounded text-xs font-mono">#{log.contractNumber}</span>
+              <span className="text-sm">•</span>
+              <span className="text-sm">{format(new Date(log.date), "MMMM d, yyyy")}</span>
+            </div>
+            <h1 className="text-3xl font-bold">{log.projectNameLocation}</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={handleEmail}>
+              <Mail className="mr-2 h-4 w-4" /> Email
+            </Button>
+            <Button onClick={exportPdf} className="shadow-lg shadow-primary/20">
+              <Download className="mr-2 h-4 w-4" /> Export PDF
+            </Button>
+          </div>
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Left Column: Details */}
+          <div className="lg:col-span-2 space-y-8">
+            
+            {/* Project Details */}
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-primary" /> Project Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Prime Contractor</label>
+                  <p className="font-medium text-lg">{log.primeContractor}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Subcontractor</label>
+                  <p className="font-medium text-lg">{log.subcontractor || "N/A"}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Agency</label>
+                  <p className="font-medium">{log.agency}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Address</label>
+                  <p className="font-medium flex items-center gap-1">
+                    <MapPin className="h-3 w-3 text-muted-foreground" /> {log.address}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Workers List */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold flex items-center gap-2 px-1">
+                <User className="h-5 w-5 text-primary" /> Worker Log ({log.workers.length})
+              </h3>
+              
+              <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-muted/50 text-xs uppercase text-muted-foreground font-semibold">
+                      <tr>
+                        <th className="px-6 py-4">Name</th>
+                        <th className="px-6 py-4">Classification</th>
+                        <th className="px-6 py-4">Time In</th>
+                        <th className="px-6 py-4">Time Out</th>
+                        <th className="px-6 py-4 text-center">Signatures</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {log.workers.map((worker) => (
+                        <tr key={worker.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-6 py-4 font-medium">{worker.name}</td>
+                          <td className="px-6 py-4 text-muted-foreground">{worker.classification}</td>
+                          <td className="px-6 py-4 font-mono">{worker.timeIn}</td>
+                          <td className="px-6 py-4 font-mono">{worker.timeOut || "--:--"}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex justify-center gap-4">
+                              <div className={`h-8 w-16 border rounded bg-muted/20 flex items-center justify-center ${worker.signatureIn ? 'border-green-500/20 bg-green-500/5' : 'border-dashed'}`}>
+                                {worker.signatureIn ? (
+                                  <img src={worker.signatureIn} alt="Sig In" className="h-full w-full object-contain p-0.5" />
+                                ) : (
+                                  <span className="text-[9px] text-muted-foreground/50">NO SIG</span>
+                                )}
+                              </div>
+                              <div className={`h-8 w-16 border rounded bg-muted/20 flex items-center justify-center ${worker.signatureOut ? 'border-green-500/20 bg-green-500/5' : 'border-dashed'}`}>
+                                {worker.signatureOut ? (
+                                  <img src={worker.signatureOut} alt="Sig Out" className="h-full w-full object-contain p-0.5" />
+                                ) : (
+                                  <span className="text-[9px] text-muted-foreground/50">NO SIG</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Verification */}
+          <div className="space-y-6">
+            <Card className="sticky top-24 border-primary/20 shadow-lg shadow-primary/5">
+              <CardHeader className="bg-muted/30 pb-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  Verification Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-6">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Contractor Rep</label>
+                  <p className="font-bold text-lg">{log.contractorRepName || "Pending"}</p>
+                  <p className="text-sm text-muted-foreground">{log.contractorRepTitle}</p>
+                </div>
+                
+                <Separator />
+                
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">Authorized Signature</label>
+                  <div className="bg-background border-2 border-dashed rounded-lg h-24 flex items-center justify-center relative overflow-hidden">
+                    {log.contractorRepSignature ? (
+                      <img src={log.contractorRepSignature} alt="Signature" className="w-full h-full object-contain p-2" />
+                    ) : (
+                      <span className="text-muted-foreground/30 text-sm font-mono uppercase">Not Signed</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Date Signed</label>
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    {log.contractorRepDate ? format(new Date(log.contractorRepDate), "MMMM d, yyyy") : "Pending"}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 p-4 rounded-lg text-sm text-blue-800 dark:text-blue-300">
+              <p className="flex gap-2">
+                <Printer className="h-4 w-4 shrink-0 mt-0.5" />
+                This log is finalized. Download the PDF to print a physical copy for site records.
+              </p>
+            </div>
+          </div>
+          
+        </div>
+      </main>
+    </div>
+  );
+}

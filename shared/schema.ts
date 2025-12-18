@@ -1,18 +1,55 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+export const dailyLogs = pgTable("daily_logs", {
+  id: serial("id").primaryKey(),
+  primeContractor: text("prime_contractor").notNull(),
+  subcontractor: text("subcontractor"),
+  contractNumber: text("contract_number").notNull(),
+  address: text("address").notNull(),
+  agency: text("agency").notNull(),
+  projectNameLocation: text("project_name_location").notNull(),
+  date: date("date").notNull(),
+  contractorRepName: text("contractor_rep_name"),
+  contractorRepTitle: text("contractor_rep_title"),
+  contractorRepSignature: text("contractor_rep_signature"), // Base64 data URL
+  contractorRepDate: date("contractor_rep_date"),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const workers = pgTable("workers", {
+  id: serial("id").primaryKey(),
+  dailyLogId: integer("daily_log_id").notNull(),
+  name: text("name").notNull(),
+  classification: text("classification").notNull(),
+  timeIn: text("time_in").notNull(),
+  signatureIn: text("signature_in"), // Base64 data URL
+  timeOut: text("time_out"),
+  signatureOut: text("signature_out"), // Base64 data URL
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export const dailyLogsRelations = relations(dailyLogs, ({ many }) => ({
+  workers: many(workers),
+}));
+
+export const workersRelations = relations(workers, ({ one }) => ({
+  dailyLog: one(dailyLogs, {
+    fields: [workers.dailyLogId],
+    references: [dailyLogs.id],
+  }),
+}));
+
+export const insertDailyLogSchema = createInsertSchema(dailyLogs).omit({ id: true });
+export const insertWorkerSchema = createInsertSchema(workers).omit({ id: true, dailyLogId: true });
+
+// Combined schema for creating a log with workers
+export const createLogSchema = insertDailyLogSchema.extend({
+  workers: z.array(insertWorkerSchema),
+});
+
+export type DailyLog = typeof dailyLogs.$inferSelect;
+export type InsertDailyLog = z.infer<typeof insertDailyLogSchema>;
+export type Worker = typeof workers.$inferSelect;
+export type InsertWorker = z.infer<typeof insertWorkerSchema>;
+export type CreateLogRequest = z.infer<typeof createLogSchema>;
