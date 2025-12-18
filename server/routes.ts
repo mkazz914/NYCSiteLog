@@ -158,147 +158,48 @@ export async function registerRoutes(
       };
 
       // Map worker data to form fields by row index
+      // PDF uses decimal format: Employee Name 1.0, Employee Name 1.1, etc.
       if (log.workers && log.workers.length > 0) {
-        for (let i = 0; i < log.workers.length && i < 15; i++) {
+        for (let i = 0; i < log.workers.length && i < 12; i++) {
           const worker = log.workers[i];
-          const rowIndex = i + 1; // PDF row numbering typically starts at 1
+          
+          // PDF field names use decimal format: "fieldName1.{index}"
+          const fieldIndex = `1.${i}`;
 
-          // Try multiple naming patterns for worker data fields
-          const namePatterns = [
-            `Name${rowIndex}`,
-            `Name ${rowIndex}`,
-            `Worker Name${rowIndex}`,
-            `WorkerName${rowIndex}`,
-            `name_${rowIndex}`,
-            `Name_Row_${rowIndex}`,
-            `Name (${rowIndex})`,
-            `Name_${rowIndex}`,
-            `NAME${rowIndex}`,
-            `workerName_${rowIndex}`,
-            `EmployeeName${rowIndex}`,
-            `Employee Name${rowIndex}`,
-            `Field${rowIndex}`,
-            `Text${rowIndex}`
-          ];
+          // Fill text fields with exact PDF field names
+          try {
+            const nameField = form.getTextField(`Employee Name ${fieldIndex}`);
+            if (nameField && worker.name) nameField.setText(worker.name);
+          } catch (e) { /* skip */ }
 
-          const classificationPatterns = [
-            `Classification${rowIndex}`,
-            `Classification ${rowIndex}`,
-            `Worker Classification${rowIndex}`,
-            `WorkerClassification${rowIndex}`,
-            `classification_${rowIndex}`,
-            `Class${rowIndex}`,
-            `Classification_${rowIndex}`,
-            `CLASSIFICATION${rowIndex}`,
-            `Title${rowIndex}`,
-            `Job Title${rowIndex}`,
-            `Position${rowIndex}`,
-            `Craft${rowIndex}`,
-            `Trade${rowIndex}`
-          ];
+          try {
+            const classField = form.getTextField(`Classification${fieldIndex}`);
+            if (classField && worker.classification) classField.setText(worker.classification);
+          } catch (e) { /* skip */ }
 
-          const timeInPatterns = [
-            `Time In${rowIndex}`,
-            `Time In ${rowIndex}`,
-            `TimeIn${rowIndex}`,
-            `Time_In${rowIndex}`,
-            `time_in_${rowIndex}`,
-            `TimeIn_${rowIndex}`,
-            `Sign_In_Time${rowIndex}`,
-            `SignIn_Time${rowIndex}`,
-            `TIME_IN${rowIndex}`,
-            `Arrival Time${rowIndex}`,
-            `Start Time${rowIndex}`,
-            `ArrivalTime${rowIndex}`,
-            `StartTime${rowIndex}`,
-            `In${rowIndex}`,
-            `TimeInRow${rowIndex}`
-          ];
+          try {
+            const timeInField = form.getTextField(`Time_In${fieldIndex}`);
+            if (timeInField && worker.timeIn) timeInField.setText(worker.timeIn);
+          } catch (e) { /* skip */ }
 
-          const timeOutPatterns = [
-            `Time Out${rowIndex}`,
-            `Time Out ${rowIndex}`,
-            `TimeOut${rowIndex}`,
-            `Time_Out${rowIndex}`,
-            `time_out_${rowIndex}`,
-            `TimeOut_${rowIndex}`,
-            `Sign_Out_Time${rowIndex}`,
-            `SignOut_Time${rowIndex}`,
-            `TIME_OUT${rowIndex}`,
-            `Departure Time${rowIndex}`,
-            `End Time${rowIndex}`,
-            `DepartureTime${rowIndex}`,
-            `EndTime${rowIndex}`,
-            `Out${rowIndex}`,
-            `TimeOutRow${rowIndex}`
-          ];
+          try {
+            const timeOutField = form.getTextField(`Time_Out${fieldIndex}`);
+            if (timeOutField && worker.timeOut) timeOutField.setText(worker.timeOut);
+          } catch (e) { /* skip */ }
 
-          const signInSigPatterns = [
-            `Signature In${rowIndex}`,
-            `Signature In ${rowIndex}`,
-            `SignatureIn${rowIndex}`,
-            `Sign_In_Signature${rowIndex}`,
-            `signature_in_${rowIndex}`,
-            `SignIn_Sig${rowIndex}`,
-            `Worker_Signature_In${rowIndex}`,
-            `SIG_IN${rowIndex}`,
-            `Signature${rowIndex}`,
-            `Sig_In${rowIndex}`,
-            `SignIn${rowIndex}`,
-            `WorkerSig${rowIndex}`,
-            `Worker Signature${rowIndex}`,
-            `CheckinSignature${rowIndex}`,
-            `ArrivalSignature${rowIndex}`
-          ];
-
-          const signOutSigPatterns = [
-            `Signature Out${rowIndex}`,
-            `Signature Out ${rowIndex}`,
-            `SignatureOut${rowIndex}`,
-            `Sign_Out_Signature${rowIndex}`,
-            `signature_out_${rowIndex}`,
-            `SignOut_Sig${rowIndex}`,
-            `Worker_Signature_Out${rowIndex}`,
-            `SIG_OUT${rowIndex}`,
-            `SignatureOut${rowIndex}`,
-            `Sig_Out${rowIndex}`,
-            `SignOut${rowIndex}`,
-            `WorkerSigOut${rowIndex}`,
-            `CheckoutSignature${rowIndex}`,
-            `DepartureSignature${rowIndex}`,
-            `EndSignature${rowIndex}`
-          ];
-
-          // Helper to try filling a field with multiple name patterns
-          const tryFillField = (patterns: string[], value: string | undefined | null) => {
-            if (!value) return;
-            for (const pattern of patterns) {
-              try {
-                const field = form.getTextField(pattern);
-                if (field) {
-                  field.setText(value);
-                  return; // Success
-                }
-              } catch (e) {
-                // Try next pattern
-              }
+          // Embed sign-in signature
+          try {
+            if (worker.signatureIn && worker.signatureIn.startsWith('data:image')) {
+              await embedSignatureInField(`EmployeeSigIn_${fieldIndex}`, worker.signatureIn);
             }
-          };
+          } catch (e) { /* skip */ }
 
-          // Fill worker data fields
-          tryFillField(namePatterns, worker.name);
-          tryFillField(classificationPatterns, worker.classification);
-          tryFillField(timeInPatterns, worker.timeIn);
-          tryFillField(timeOutPatterns, worker.timeOut);
-
-          // Embed signatures
-          for (const pattern of signInSigPatterns) {
-            await embedSignatureInField(pattern, worker.signatureIn);
-          }
-
-          for (const pattern of signOutSigPatterns) {
-            await embedSignatureInField(pattern, worker.signatureOut);
-          }
+          // Embed sign-out signature
+          try {
+            if (worker.signatureOut && worker.signatureOut.startsWith('data:image')) {
+              await embedSignatureInField(`EmployeeSigOut${fieldIndex}`, worker.signatureOut);
+            }
+          } catch (e) { /* skip */ }
         }
       }
 
