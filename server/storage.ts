@@ -8,6 +8,7 @@ import {
   type InsertWorker,
   type UpdateWorker,
   type UpdateLog,
+  type SignLog,
   type CreateLogRequest
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -17,6 +18,7 @@ export interface IStorage {
   getLogs(): Promise<DailyLog[]>;
   getLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
   updateLog(id: number, data: UpdateLog): Promise<DailyLog | undefined>;
+  signLog(id: number, data: SignLog): Promise<DailyLog | undefined>;
   cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
   deleteLog(id: number): Promise<boolean>;
   addWorker(logId: number, worker: InsertWorker): Promise<Worker | undefined>;
@@ -74,6 +76,26 @@ export class DatabaseStorage implements IStorage {
 
     const [updated] = await db.update(dailyLogs)
       .set(updateData)
+      .where(eq(dailyLogs.id, id))
+      .returning();
+
+    return updated;
+  }
+
+  async signLog(id: number, data: SignLog): Promise<DailyLog | undefined> {
+    const [existing] = await db.select().from(dailyLogs).where(eq(dailyLogs.id, id));
+    if (!existing) return undefined;
+
+    // Don't allow signing an already-signed log
+    if (existing.contractorRepSignature) return undefined;
+
+    const [updated] = await db.update(dailyLogs)
+      .set({
+        contractorRepName: data.contractorRepName,
+        contractorRepTitle: data.contractorRepTitle,
+        contractorRepSignature: data.contractorRepSignature,
+        contractorRepDate: data.contractorRepDate || new Date().toISOString().split('T')[0],
+      })
       .where(eq(dailyLogs.id, id))
       .returning();
 

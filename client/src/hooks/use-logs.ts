@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { type CreateLogRequest } from "@shared/routes";
-import { dailyLogs, workers, type InsertWorker, type UpdateWorker, type UpdateLog } from "@shared/schema";
+import { dailyLogs, workers, type InsertWorker, type UpdateWorker, type UpdateLog, type SignLog } from "@shared/schema";
 
 // Type inference from schema
 export type DailyLog = typeof dailyLogs.$inferSelect;
@@ -195,6 +195,30 @@ export function useUpdateLog() {
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.message || 'Failed to update log');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.logs.get.path] });
+      queryClient.invalidateQueries({ queryKey: [api.logs.list.path] });
+    },
+  });
+}
+
+export function useSignLog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ logId, data }: { logId: number; data: SignLog }) => {
+      const url = buildUrl(api.logs.sign.path, { id: logId });
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to sign log');
       }
       return res.json();
     },

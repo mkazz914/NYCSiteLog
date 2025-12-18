@@ -1,9 +1,9 @@
-import { useLog, useExportPdf, useDeleteWorker, useAddWorker, useUpdateWorker, useUpdateLog, type Worker } from "@/hooks/use-logs";
+import { useLog, useExportPdf, useDeleteWorker, useAddWorker, useUpdateWorker, useUpdateLog, useSignLog, type Worker } from "@/hooks/use-logs";
 import { Header } from "@/components/Header";
 import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer, Trash2, Plus, Edit } from "lucide-react";
+import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer, Trash2, Plus, Edit, PenLine } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ export default function LogDetail() {
   const addWorker = useAddWorker();
   const updateWorker = useUpdateWorker();
   const updateLog = useUpdateLog();
+  const signLog = useSignLog();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -46,6 +47,11 @@ export default function LogDetail() {
   const [editTimeOut, setEditTimeOut] = useState("");
   const signatureInRef = useRef<SignatureCanvas | null>(null);
   const signatureOutRef = useRef<SignatureCanvas | null>(null);
+  
+  const [isSignOpen, setIsSignOpen] = useState(false);
+  const [signRepName, setSignRepName] = useState("");
+  const [signRepTitle, setSignRepTitle] = useState("");
+  const contractorSignatureRef = useRef<SignatureCanvas | null>(null);
 
   const handleAddWorker = async () => {
     if (!newWorkerName.trim() || !newWorkerClassification.trim() || !newWorkerTimeIn.trim()) {
@@ -102,6 +108,52 @@ export default function LogDetail() {
   };
 
   const canEditWorkers = log && !log.contractorRepSignature;
+
+  const handleSignLog = async () => {
+    if (!signRepName.trim() || !signRepTitle.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please provide your name and title.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (contractorSignatureRef.current?.isEmpty()) {
+      toast({
+        title: "Signature required",
+        description: "Please sign to finalize this log.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const signatureData = contractorSignatureRef.current?.toDataURL("image/png");
+      await signLog.mutateAsync({
+        logId: id,
+        data: {
+          contractorRepName: signRepName.trim(),
+          contractorRepTitle: signRepTitle.trim(),
+          contractorRepSignature: signatureData || "",
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: [api.logs.get.path, id] });
+      toast({
+        title: "Log signed",
+        description: "This daily log has been finalized with your signature.",
+      });
+      setIsSignOpen(false);
+      setSignRepName("");
+      setSignRepTitle("");
+    } catch {
+      toast({
+        title: "Failed to sign log",
+        description: "Could not sign the log. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleOpenEditProject = () => {
     if (!log) return;
@@ -559,15 +611,38 @@ export default function LogDetail() {
                     {log.contractorRepDate ? format(new Date(log.contractorRepDate), "MMMM d, yyyy") : "Pending"}
                   </div>
                 </div>
+
+                {canEditWorkers && (
+                  <>
+                    <Separator />
+                    <Button
+                      onClick={() => setIsSignOpen(true)}
+                      className="w-full"
+                      data-testid="button-sign-log"
+                    >
+                      <PenLine className="h-4 w-4 mr-2" />
+                      Sign & Finalize
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
             
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 p-4 rounded-lg text-sm text-blue-800 dark:text-blue-300">
-              <p className="flex gap-2">
-                <Printer className="h-4 w-4 shrink-0 mt-0.5" />
-                This log is finalized. Download the PDF to print a physical copy for site records.
-              </p>
-            </div>
+            {log.contractorRepSignature ? (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 p-4 rounded-lg text-sm text-blue-800 dark:text-blue-300">
+                <p className="flex gap-2">
+                  <Printer className="h-4 w-4 shrink-0 mt-0.5" />
+                  This log is finalized. Download the PDF to print a physical copy for site records.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 p-4 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+                <p className="flex gap-2">
+                  <PenLine className="h-4 w-4 shrink-0 mt-0.5" />
+                  This log is not yet signed. Sign and finalize to lock the log.
+                </p>
+              </div>
+            )}
           </div>
           
         </div>
@@ -671,6 +746,77 @@ export default function LogDetail() {
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : null}
               Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSignOpen} onOpenChange={(open) => {
+        setIsSignOpen(open);
+        if (!open) {
+          setSignRepName("");
+          setSignRepTitle("");
+          contractorSignatureRef.current?.clear();
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sign & Finalize Log</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="sign-rep-name">Your Name</Label>
+              <Input
+                id="sign-rep-name"
+                value={signRepName}
+                onChange={(e) => setSignRepName(e.target.value)}
+                placeholder="Enter your full name"
+                data-testid="input-sign-rep-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sign-rep-title">Your Title</Label>
+              <Input
+                id="sign-rep-title"
+                value={signRepTitle}
+                onChange={(e) => setSignRepTitle(e.target.value)}
+                placeholder="e.g., Site Supervisor"
+                data-testid="input-sign-rep-title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Your Signature</Label>
+              <div className="border rounded-lg bg-white">
+                <SignatureCanvas
+                  ref={contractorSignatureRef}
+                  canvasProps={{
+                    className: "w-full h-32",
+                    style: { width: "100%", height: "128px" }
+                  }}
+                  backgroundColor="white"
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => contractorSignatureRef.current?.clear()}
+                data-testid="button-clear-contractor-signature"
+              >
+                Clear
+              </Button>
+            </div>
+            <Button 
+              onClick={handleSignLog} 
+              className="w-full"
+              disabled={signLog.isPending}
+              data-testid="button-submit-sign"
+            >
+              {signLog.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <PenLine className="h-4 w-4 mr-2" />
+              )}
+              Sign & Finalize Log
             </Button>
           </div>
         </DialogContent>

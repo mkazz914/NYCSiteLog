@@ -295,6 +295,35 @@ export async function registerRoutes(
     }
   });
 
+  // Sign/Finalize Log (only unsigned logs can be signed)
+  app.post(api.logs.sign.path, async (req, res) => {
+    try {
+      const logId = Number(req.params.id);
+      const log = await storage.getLog(logId);
+      if (!log) {
+        return res.status(404).json({ message: 'Log not found' });
+      }
+      if (log.contractorRepSignature) {
+        return res.status(400).json({ message: 'Log is already signed' });
+      }
+      
+      const input = api.logs.sign.input.parse(req.body);
+      const updated = await storage.signLog(logId, input);
+      if (!updated) {
+        return res.status(404).json({ message: 'Log not found' });
+      }
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      throw err;
+    }
+  });
+
   // Add Worker to Log
   app.post(api.workers.create.path, async (req, res) => {
     try {

@@ -62,6 +62,14 @@ export const updateLogSchema = z.object({
   date: z.string().optional(),
 });
 
+// Schema for signing/finalizing an unsigned log with contractor rep info
+export const signLogSchema = z.object({
+  contractorRepName: z.string().min(1, "Name is required"),
+  contractorRepTitle: z.string().min(1, "Title is required"),
+  contractorRepSignature: z.string().min(1, "Signature is required"),
+  contractorRepDate: z.string().optional(),
+});
+
 // Combined schema for creating a log with workers
 export const createLogSchema = insertDailyLogSchema.extend({
   workers: z.array(insertWorkerSchema),
@@ -73,4 +81,5 @@ export type Worker = typeof workers.$inferSelect;
 export type InsertWorker = z.infer<typeof insertWorkerSchema>;
 export type UpdateWorker = z.infer<typeof updateWorkerSchema>;
 export type UpdateLog = z.infer<typeof updateLogSchema>;
+export type SignLog = z.infer<typeof signLogSchema>;
 export type CreateLogRequest = z.infer<typeof createLogSchema>;
