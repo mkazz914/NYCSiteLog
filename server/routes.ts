@@ -241,5 +241,23 @@ export async function registerRoutes(
     }
   });
 
+  // Clone Log
+  app.post(api.logs.clone.path, async (req, res) => {
+    const clonedLog = await storage.cloneLog(Number(req.params.id));
+    if (!clonedLog) {
+      return res.status(404).json({ message: 'Log not found' });
+    }
+    res.status(201).json(clonedLog);
+  });
+
+  // Delete Worker
+  app.delete(api.workers.delete.path, async (req, res) => {
+    const success = await storage.deleteWorker(Number(req.params.id));
+    if (!success) {
+      return res.status(404).json({ message: 'Worker not found' });
+    }
+    res.json({ success: true });
+  });
+
   return httpServer;
 }

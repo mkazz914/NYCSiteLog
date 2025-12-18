@@ -77,3 +77,39 @@ export function useExportPdf(id: number) {
     a.remove();
   };
 }
+
+export function useCloneLog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const url = buildUrl(api.logs.clone.path, { id });
+      const res = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to clone log');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.logs.list.path] });
+    },
+  });
+}
+
+export function useDeleteWorker() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (workerId: number) => {
+      const url = buildUrl(api.workers.delete.path, { id: workerId });
+      const res = await fetch(url, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to delete worker');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.logs.get.path] });
+    },
+  });
+}

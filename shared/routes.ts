@@ -48,6 +48,24 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    clone: {
+      method: 'POST' as const,
+      path: '/api/logs/:id/clone',
+      responses: {
+        201: z.custom<typeof dailyLogs.$inferSelect & { workers: (typeof workers.$inferSelect)[] }>(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+  workers: {
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/workers/:id',
+      responses: {
+        200: z.object({ success: z.boolean() }),
+        404: errorSchemas.notFound,
+      },
+    },
   },
 };
 

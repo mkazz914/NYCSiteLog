@@ -1,13 +1,36 @@
-import { useLogs } from "@/hooks/use-logs";
+import { useLogs, useCloneLog } from "@/hooks/use-logs";
 import { Header } from "@/components/Header";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Plus, FileText, Calendar, MapPin, Building2, Loader2, ArrowRight } from "lucide-react";
+import { Plus, FileText, Calendar, MapPin, Building2, Loader2, ArrowRight, Copy } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
   const { data: logs, isLoading, error } = useLogs();
+  const cloneLog = useCloneLog();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
+  const handleClone = async (e: React.MouseEvent, logId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const newLog = await cloneLog.mutateAsync(logId);
+      toast({
+        title: "Log cloned",
+        description: "A new log has been created with today's date.",
+      });
+      setLocation(`/logs/${newLog.id}`);
+    } catch {
+      toast({
+        title: "Clone failed",
+        description: "Could not clone the log. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -86,8 +109,19 @@ export default function Home() {
                         <span className="truncate">{log.agency}</span>
                       </div>
                     </div>
-                    <div className="mt-4 flex items-center text-primary text-sm font-semibold group-hover:translate-x-1 transition-transform">
-                      View Details <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="flex items-center text-primary text-sm font-semibold group-hover:translate-x-1 transition-transform">
+                        View Details <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => handleClone(e, log.id)}
+                        disabled={cloneLog.isPending}
+                        data-testid={`button-clone-log-${log.id}`}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

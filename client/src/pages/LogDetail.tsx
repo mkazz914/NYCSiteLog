@@ -1,17 +1,42 @@
-import { useLog, useExportPdf } from "@/hooks/use-logs";
+import { useLog, useExportPdf, useDeleteWorker } from "@/hooks/use-logs";
 import { Header } from "@/components/Header";
 import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer } from "lucide-react";
+import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { api } from "@shared/routes";
 
 export default function LogDetail() {
   const [, params] = useRoute("/logs/:id");
   const id = parseInt(params?.id || "0");
   const { data: log, isLoading, error } = useLog(id);
   const exportPdf = useExportPdf(id);
+  const deleteWorker = useDeleteWorker();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const handleDeleteWorker = async (workerId: number, workerName: string) => {
+    try {
+      await deleteWorker.mutateAsync(workerId);
+      queryClient.invalidateQueries({ queryKey: [api.logs.get.path, id] });
+      toast({
+        title: "Worker removed",
+        description: `${workerName} has been removed from this log.`,
+      });
+    } catch {
+      toast({
+        title: "Failed to remove worker",
+        description: "Could not remove the worker. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const canEditWorkers = log && !log.contractorRepSignature;
 
   const handleEmail = () => {
     if (!log) return;
@@ -121,6 +146,7 @@ export default function LogDetail() {
                         <th className="px-6 py-4">Time In</th>
                         <th className="px-6 py-4">Time Out</th>
                         <th className="px-6 py-4 text-center">Signatures</th>
+                        {canEditWorkers && <th className="px-6 py-4 text-center">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -148,6 +174,19 @@ export default function LogDetail() {
                               </div>
                             </div>
                           </td>
+                          {canEditWorkers && (
+                            <td className="px-6 py-4 text-center">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleDeleteWorker(worker.id, worker.name)}
+                                disabled={deleteWorker.isPending}
+                                data-testid={`button-delete-worker-${worker.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
