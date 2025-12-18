@@ -41,7 +41,7 @@ export default function Home() {
     const groupMap = new Map<string, JobGroup>();
 
     logs.forEach((log) => {
-      const key = `${log.contractNumber}-${log.projectNameLocation}`;
+      const key = log.contractNumber;
       const logDate = new Date(log.date);
 
       if (!groupMap.has(key)) {
