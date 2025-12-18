@@ -134,6 +134,9 @@ export async function registerRoutes(
       safeFill("NamePrint", log.contractorRepName);
       safeFill("Title", log.contractorRepTitle);
       safeFill("Date_2", log.contractorRepDate ? new Date(log.contractorRepDate).toLocaleDateString() : "");
+      
+      // Fill the DATE field with the Authorized signature date
+      safeFill("DATE", log.contractorRepDate ? new Date(log.contractorRepDate).toLocaleDateString() : "");
 
       // Helper to embed signature image into a field
       const embedSignatureInField = async (fieldName: string, signatureData: string | undefined) => {
@@ -210,10 +213,10 @@ export async function registerRoutes(
           if (base64Data) {
             const imageBytes = Buffer.from(base64Data, 'base64');
             const image = await pdfDoc.embedPng(imageBytes);
-            // Place at signature field location (bottom left, typically)
+            // Place above the signature line (around 80-90 points from bottom is typically the signature line, so place at 120-130)
             page.drawImage(image, {
               x: 50,
-              y: 50,
+              y: 120,
               width: 80,
               height: 40
             });
