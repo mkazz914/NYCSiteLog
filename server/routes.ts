@@ -215,7 +215,7 @@ export async function registerRoutes(
             const image = await pdfDoc.embedPng(imageBytes);
             // Place just above the signature line (Contractors Representative)
             page.drawImage(image, {
-              x: 50,
+              x: 20,
               y: 70,
               width: 80,
               height: 40
