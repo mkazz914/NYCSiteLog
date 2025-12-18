@@ -13,7 +13,7 @@ export default function Home() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const handleClone = async (e: React.MouseEvent, logId: number) => {
+  const handleClone = async (e: { preventDefault: () => void; stopPropagation: () => void }, logId: number) => {
     e.preventDefault();
     e.stopPropagation();
     try {
