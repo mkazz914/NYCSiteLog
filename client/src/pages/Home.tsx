@@ -44,7 +44,7 @@ export default function Home() {
 
     logs.forEach((log) => {
       const key = log.contractNumber;
-      const logDate = new Date(log.date);
+      const logDate = new Date(log.date + "T12:00:00");
 
       if (!groupMap.has(key)) {
         groupMap.set(key, {
@@ -66,7 +66,7 @@ export default function Home() {
     });
 
     groupMap.forEach((group) => {
-      group.logs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      group.logs.sort((a, b) => new Date(b.date + "T12:00:00").getTime() - new Date(a.date + "T12:00:00").getTime());
     });
 
     return Array.from(groupMap.values()).sort(
@@ -212,7 +212,7 @@ export default function Home() {
                                   <div className="flex items-center gap-2 text-muted-foreground">
                                     <Calendar className="h-4 w-4" />
                                     <span className="font-medium text-foreground">
-                                      {format(new Date(log.date), "MMMM d, yyyy")}
+                                      {format(new Date(log.date + "T12:00:00"), "MMMM d, yyyy")}
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-1">

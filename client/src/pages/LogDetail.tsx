@@ -304,7 +304,7 @@ export default function LogDetail() {
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               <span className="bg-muted px-2 py-0.5 rounded text-xs font-mono">#{log.contractNumber}</span>
               <span className="text-sm">•</span>
-              <span className="text-sm">{format(new Date(log.date), "MMMM d, yyyy")}</span>
+              <span className="text-sm">{format(new Date(log.date + "T12:00:00"), "MMMM d, yyyy")}</span>
             </div>
             <h1 className="text-3xl font-bold">{log.projectNameLocation}</h1>
           </div>
@@ -608,7 +608,7 @@ export default function LogDetail() {
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Date Signed</label>
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    {log.contractorRepDate ? format(new Date(log.contractorRepDate), "MMMM d, yyyy") : "Pending"}
+                    {log.contractorRepDate ? format(new Date(log.contractorRepDate + "T12:00:00"), "MMMM d, yyyy") : "Pending"}
                   </div>
                 </div>
 
