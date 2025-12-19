@@ -13,7 +13,7 @@ export function Header() {
               <HardHat className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight leading-none">SITE COMMAND</h1>
+              <h1 className="text-xl font-bold tracking-tight leading-none">Site Log NYC</h1>
               <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">Digital Logbook</p>
             </div>
           </div>
