@@ -9,11 +9,16 @@ import { PDFDocument } from "pdf-lib";
 import { db } from "./db";
 import { workers } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  
+  // Setup auth BEFORE other routes
+  await setupAuth(app);
+  registerAuthRoutes(app);
   
   // Debug endpoint to list all form fields in PDF
   app.get("/api/debug/pdf-fields", async (req, res) => {
@@ -47,10 +52,11 @@ export async function registerRoutes(
   });
 
   // Create Log
-  app.post(api.logs.create.path, async (req, res) => {
+  app.post(api.logs.create.path, isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const input = api.logs.create.input.parse(req.body);
-      const log = await storage.createLog(input);
+      const log = await storage.createLog(input, userId);
       res.status(201).json(log);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -64,14 +70,16 @@ export async function registerRoutes(
   });
 
   // List Logs
-  app.get(api.logs.list.path, async (req, res) => {
-    const logs = await storage.getLogs();
+  app.get(api.logs.list.path, isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const logs = await storage.getLogs(userId);
     res.json(logs);
   });
 
   // Get Log
-  app.get(api.logs.get.path, async (req, res) => {
-    const log = await storage.getLog(Number(req.params.id));
+  app.get(api.logs.get.path, isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const log = await storage.getLog(Number(req.params.id), userId);
     if (!log) {
       return res.status(404).json({ message: 'Log not found' });
     }
@@ -79,8 +87,9 @@ export async function registerRoutes(
   });
 
   // Generate PDF
-  app.get(api.logs.exportPdf.path, async (req, res) => {
-    const log = await storage.getLog(Number(req.params.id));
+  app.get(api.logs.exportPdf.path, isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const log = await storage.getLog(Number(req.params.id), userId);
     if (!log) {
       return res.status(404).json({ message: 'Log not found' });
     }
@@ -224,8 +233,9 @@ export async function registerRoutes(
   });
 
   // Clone Log
-  app.post(api.logs.clone.path, async (req, res) => {
-    const clonedLog = await storage.cloneLog(Number(req.params.id));
+  app.post(api.logs.clone.path, isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const clonedLog = await storage.cloneLog(Number(req.params.id), userId);
     if (!clonedLog) {
       return res.status(404).json({ message: 'Log not found' });
     }
@@ -233,23 +243,25 @@ export async function registerRoutes(
   });
 
   // Delete Log (only unsigned logs can be deleted)
-  app.delete(api.logs.delete.path, async (req, res) => {
-    const log = await storage.getLog(Number(req.params.id));
+  app.delete(api.logs.delete.path, isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const log = await storage.getLog(Number(req.params.id), userId);
     if (!log) {
       return res.status(404).json({ message: 'Log not found' });
     }
     if (log.contractorRepSignature) {
       return res.status(400).json({ message: 'Cannot delete a signed log' });
     }
-    const success = await storage.deleteLog(Number(req.params.id));
+    const success = await storage.deleteLog(Number(req.params.id), userId);
     res.json({ success });
   });
 
   // Update Log (only unsigned logs can be updated)
-  app.patch(api.logs.update.path, async (req, res) => {
+  app.patch(api.logs.update.path, isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const logId = Number(req.params.id);
-      const log = await storage.getLog(logId);
+      const log = await storage.getLog(logId, userId);
       if (!log) {
         return res.status(404).json({ message: 'Log not found' });
       }
@@ -258,7 +270,7 @@ export async function registerRoutes(
       }
       
       const input = api.logs.update.input.parse(req.body);
-      const updated = await storage.updateLog(logId, input);
+      const updated = await storage.updateLog(logId, input, userId);
       if (!updated) {
         return res.status(404).json({ message: 'Log not found' });
       }
@@ -275,10 +287,11 @@ export async function registerRoutes(
   });
 
   // Sign/Finalize Log (only unsigned logs can be signed)
-  app.post(api.logs.sign.path, async (req, res) => {
+  app.post(api.logs.sign.path, isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const logId = Number(req.params.id);
-      const log = await storage.getLog(logId);
+      const log = await storage.getLog(logId, userId);
       if (!log) {
         return res.status(404).json({ message: 'Log not found' });
       }
@@ -287,7 +300,7 @@ export async function registerRoutes(
       }
       
       const input = api.logs.sign.input.parse(req.body);
-      const updated = await storage.signLog(logId, input);
+      const updated = await storage.signLog(logId, input, userId);
       if (!updated) {
         return res.status(404).json({ message: 'Log not found' });
       }
@@ -304,10 +317,11 @@ export async function registerRoutes(
   });
 
   // Add Worker to Log
-  app.post(api.workers.create.path, async (req, res) => {
+  app.post(api.workers.create.path, isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const logId = Number(req.params.logId);
-      const log = await storage.getLog(logId);
+      const log = await storage.getLog(logId, userId);
       if (!log) {
         return res.status(404).json({ message: 'Log not found' });
       }
@@ -316,7 +330,7 @@ export async function registerRoutes(
       }
       
       const input = api.workers.create.input.parse(req.body);
-      const worker = await storage.addWorker(logId, input);
+      const worker = await storage.addWorker(logId, input, userId);
       if (!worker) {
         return res.status(404).json({ message: 'Log not found' });
       }
@@ -333,8 +347,9 @@ export async function registerRoutes(
   });
 
   // Update Worker (time-out and signatures)
-  app.patch(api.workers.update.path, async (req, res) => {
+  app.patch(api.workers.update.path, isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const workerId = Number(req.params.id);
       
       // Check if worker exists
@@ -344,13 +359,16 @@ export async function registerRoutes(
       }
       
       // Check if parent log is signed (immutable)
-      const log = await storage.getLog(workerRecord.dailyLogId);
-      if (log?.contractorRepSignature) {
+      const log = await storage.getLog(workerRecord.dailyLogId, userId);
+      if (!log) {
+        return res.status(404).json({ message: 'Log not found' });
+      }
+      if (log.contractorRepSignature) {
         return res.status(400).json({ message: 'Cannot update workers on a signed log' });
       }
       
       const input = api.workers.update.input.parse(req.body);
-      const updated = await storage.updateWorker(workerId, input);
+      const updated = await storage.updateWorker(workerId, input, userId);
       if (!updated) {
         return res.status(404).json({ message: 'Worker not found' });
       }
@@ -367,8 +385,9 @@ export async function registerRoutes(
   });
 
   // Delete Worker
-  app.delete(api.workers.delete.path, async (req, res) => {
-    const success = await storage.deleteWorker(Number(req.params.id));
+  app.delete(api.workers.delete.path, isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const success = await storage.deleteWorker(Number(req.params.id), userId);
     if (!success) {
       return res.status(404).json({ message: 'Worker not found' });
     }

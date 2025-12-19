@@ -11,28 +11,28 @@ import {
   type SignLog,
   type CreateLogRequest
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
-  createLog(log: CreateLogRequest): Promise<DailyLog & { workers: Worker[] }>;
-  getLogs(): Promise<DailyLog[]>;
-  getLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
-  updateLog(id: number, data: UpdateLog): Promise<DailyLog | undefined>;
-  signLog(id: number, data: SignLog): Promise<DailyLog | undefined>;
-  cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
-  deleteLog(id: number): Promise<boolean>;
-  addWorker(logId: number, worker: InsertWorker): Promise<Worker | undefined>;
-  updateWorker(workerId: number, data: UpdateWorker): Promise<Worker | undefined>;
-  deleteWorker(workerId: number): Promise<boolean>;
+  createLog(log: CreateLogRequest, userId: string): Promise<DailyLog & { workers: Worker[] }>;
+  getLogs(userId: string): Promise<DailyLog[]>;
+  getLog(id: number, userId: string): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
+  updateLog(id: number, data: UpdateLog, userId: string): Promise<DailyLog | undefined>;
+  signLog(id: number, data: SignLog, userId: string): Promise<DailyLog | undefined>;
+  cloneLog(id: number, userId: string): Promise<(DailyLog & { workers: Worker[] }) | undefined>;
+  deleteLog(id: number, userId: string): Promise<boolean>;
+  addWorker(logId: number, worker: InsertWorker, userId: string): Promise<Worker | undefined>;
+  updateWorker(workerId: number, data: UpdateWorker, userId: string): Promise<Worker | undefined>;
+  deleteWorker(workerId: number, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
-  async createLog(input: CreateLogRequest): Promise<DailyLog & { workers: Worker[] }> {
+  async createLog(input: CreateLogRequest, userId: string): Promise<DailyLog & { workers: Worker[] }> {
     // Transaction to ensure consistency
     return await db.transaction(async (tx) => {
       const { workers: workersList, ...logData } = input;
       
-      const [newLog] = await tx.insert(dailyLogs).values(logData).returning();
+      const [newLog] = await tx.insert(dailyLogs).values({ ...logData, userId }).returning();
       
       let newWorkers: Worker[] = [];
       if (workersList.length > 0) {
@@ -47,12 +47,12 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async getLogs(): Promise<DailyLog[]> {
-    return await db.select().from(dailyLogs).orderBy(dailyLogs.date);
+  async getLogs(userId: string): Promise<DailyLog[]> {
+    return await db.select().from(dailyLogs).where(eq(dailyLogs.userId, userId)).orderBy(dailyLogs.date);
   }
 
-  async getLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined> {
-    const [log] = await db.select().from(dailyLogs).where(eq(dailyLogs.id, id));
+  async getLog(id: number, userId: string): Promise<(DailyLog & { workers: Worker[] }) | undefined> {
+    const [log] = await db.select().from(dailyLogs).where(and(eq(dailyLogs.id, id), eq(dailyLogs.userId, userId)));
     
     if (!log) return undefined;
     
@@ -61,8 +61,8 @@ export class DatabaseStorage implements IStorage {
     return { ...log, workers: logWorkers };
   }
 
-  async updateLog(id: number, data: UpdateLog): Promise<DailyLog | undefined> {
-    const [existing] = await db.select().from(dailyLogs).where(eq(dailyLogs.id, id));
+  async updateLog(id: number, data: UpdateLog, userId: string): Promise<DailyLog | undefined> {
+    const [existing] = await db.select().from(dailyLogs).where(and(eq(dailyLogs.id, id), eq(dailyLogs.userId, userId)));
     if (!existing) return undefined;
 
     const updateData: Partial<DailyLog> = {};
@@ -82,8 +82,8 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async signLog(id: number, data: SignLog): Promise<DailyLog | undefined> {
-    const [existing] = await db.select().from(dailyLogs).where(eq(dailyLogs.id, id));
+  async signLog(id: number, data: SignLog, userId: string): Promise<DailyLog | undefined> {
+    const [existing] = await db.select().from(dailyLogs).where(and(eq(dailyLogs.id, id), eq(dailyLogs.userId, userId)));
     if (!existing) return undefined;
 
     // Don't allow signing an already-signed log
@@ -102,13 +102,14 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async cloneLog(id: number): Promise<(DailyLog & { workers: Worker[] }) | undefined> {
-    const existingLog = await this.getLog(id);
+  async cloneLog(id: number, userId: string): Promise<(DailyLog & { workers: Worker[] }) | undefined> {
+    const existingLog = await this.getLog(id, userId);
     if (!existingLog) return undefined;
 
     return await db.transaction(async (tx) => {
       // Create new log with same project info but today's date and no verification
       const [newLog] = await tx.insert(dailyLogs).values({
+        userId,
         primeContractor: existingLog.primeContractor,
         subcontractor: existingLog.subcontractor,
         contractNumber: existingLog.contractNumber,
@@ -141,16 +142,18 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async deleteLog(id: number): Promise<boolean> {
+  async deleteLog(id: number, userId: string): Promise<boolean> {
     return await db.transaction(async (tx) => {
+      const [log] = await tx.select().from(dailyLogs).where(and(eq(dailyLogs.id, id), eq(dailyLogs.userId, userId)));
+      if (!log) return false;
       await tx.delete(workers).where(eq(workers.dailyLogId, id));
       const result = await tx.delete(dailyLogs).where(eq(dailyLogs.id, id)).returning();
       return result.length > 0;
     });
   }
 
-  async addWorker(logId: number, worker: InsertWorker): Promise<Worker | undefined> {
-    const [log] = await db.select().from(dailyLogs).where(eq(dailyLogs.id, logId));
+  async addWorker(logId: number, worker: InsertWorker, userId: string): Promise<Worker | undefined> {
+    const [log] = await db.select().from(dailyLogs).where(and(eq(dailyLogs.id, logId), eq(dailyLogs.userId, userId)));
     if (!log) return undefined;
     
     const [newWorker] = await db.insert(workers).values({
@@ -161,9 +164,13 @@ export class DatabaseStorage implements IStorage {
     return newWorker;
   }
 
-  async updateWorker(workerId: number, data: UpdateWorker): Promise<Worker | undefined> {
+  async updateWorker(workerId: number, data: UpdateWorker, userId: string): Promise<Worker | undefined> {
     const [existing] = await db.select().from(workers).where(eq(workers.id, workerId));
     if (!existing) return undefined;
+    
+    // Verify the worker belongs to a log owned by this user
+    const [log] = await db.select().from(dailyLogs).where(and(eq(dailyLogs.id, existing.dailyLogId), eq(dailyLogs.userId, userId)));
+    if (!log) return undefined;
     
     const updateData: Partial<Worker> = {};
     if (data.timeIn !== undefined) updateData.timeIn = data.timeIn || existing.timeIn;
@@ -179,7 +186,14 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async deleteWorker(workerId: number): Promise<boolean> {
+  async deleteWorker(workerId: number, userId: string): Promise<boolean> {
+    const [existing] = await db.select().from(workers).where(eq(workers.id, workerId));
+    if (!existing) return false;
+    
+    // Verify the worker belongs to a log owned by this user
+    const [log] = await db.select().from(dailyLogs).where(and(eq(dailyLogs.id, existing.dailyLogId), eq(dailyLogs.userId, userId)));
+    if (!log) return false;
+    
     const result = await db.delete(workers).where(eq(workers.id, workerId)).returning();
     return result.length > 0;
   }

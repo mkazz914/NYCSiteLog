@@ -1,10 +1,13 @@
-import { pgTable, text, serial, integer, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, date, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+export * from "./models/auth";
+
 export const dailyLogs = pgTable("daily_logs", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
   primeContractor: text("prime_contractor").notNull(),
   subcontractor: text("subcontractor"),
   contractNumber: text("contract_number").notNull(),
@@ -40,7 +43,7 @@ export const workersRelations = relations(workers, ({ one }) => ({
   }),
 }));
 
-export const insertDailyLogSchema = createInsertSchema(dailyLogs).omit({ id: true });
+export const insertDailyLogSchema = createInsertSchema(dailyLogs).omit({ id: true, userId: true });
 export const insertWorkerSchema = createInsertSchema(workers).omit({ id: true, dailyLogId: true });
 
 // Schema for updating a worker (partial update of editable fields)
