@@ -512,7 +512,19 @@ export default function LogDetail() {
                     <tbody className="divide-y">
                       {log.workers.map((worker) => (
                         <tr key={worker.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-6 py-4 font-medium">{worker.name}</td>
+                          <td className="px-6 py-4 font-medium">
+                            {canEditWorkers ? (
+                              <button
+                                onClick={() => handleEditWorker(worker)}
+                                className="text-left hover:text-primary hover:underline cursor-pointer"
+                                data-testid={`link-worker-name-${worker.id}`}
+                              >
+                                {worker.name}
+                              </button>
+                            ) : (
+                              worker.name
+                            )}
+                          </td>
                           <td className="px-6 py-4 text-muted-foreground">{worker.classification}</td>
                           <td className="px-6 py-4 font-mono">{worker.timeIn}</td>
                           <td className="px-6 py-4 font-mono">{worker.timeOut || "--:--"}</td>
