@@ -3,7 +3,7 @@ import { Header } from "@/components/Header";
 import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Download, Mail, Calendar, MapPin, Briefcase, User, Printer, Trash2, Plus, Edit, PenLine } from "lucide-react";
+import { Loader2, Download, Calendar, MapPin, Briefcase, User, Printer, Trash2, Plus, Edit, PenLine } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
@@ -261,13 +261,6 @@ export default function LogDetail() {
     }
   };
 
-  const handleEmail = () => {
-    if (!log) return;
-    const subject = encodeURIComponent(`Daily Sign In Sheet - ${log.date} - ${log.projectNameLocation}`);
-    const body = encodeURIComponent(`Attached is the daily sign in sheet for ${log.projectNameLocation} on ${log.date}.\n\nPlease find the PDF attached.`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -309,9 +302,6 @@ export default function LogDetail() {
             <h1 className="text-3xl font-bold">{log.projectNameLocation}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={handleEmail}>
-              <Mail className="mr-2 h-4 w-4" /> Email
-            </Button>
             <Button onClick={exportPdf} className="shadow-lg shadow-primary/20">
               <Download className="mr-2 h-4 w-4" /> Export PDF
             </Button>
