@@ -21,7 +21,7 @@ export async function registerRoutes(
   registerAuthRoutes(app);
   
   // Debug endpoint to list all form fields in PDF
-  app.get("/api/debug/pdf-fields", async (req, res) => {
+  app.get("/api/debug/pdf-fields", isAuthenticated, async (req, res) => {
     try {
       const templatePath = path.join(process.cwd(), "attached_assets", "NYCDDC_-_Sign_In_Sheet_APP_1766096042760.pdf");
       if (!fs.existsSync(templatePath)) {
