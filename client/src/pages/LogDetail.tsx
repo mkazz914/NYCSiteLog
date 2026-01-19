@@ -3,7 +3,7 @@ import { Header } from "@/components/Header";
 import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Download, Calendar, MapPin, Briefcase, User, Printer, Trash2, Plus, Edit, PenLine } from "lucide-react";
+import { Loader2, Download, Calendar, MapPin, Briefcase, User, Printer, Trash2, Plus, Edit, PenLine, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
@@ -108,6 +108,30 @@ export default function LogDetail() {
   };
 
   const canEditWorkers = log && !log.contractorRepSignature;
+
+  const handleEmailLog = () => {
+    if (!log) return;
+    
+    const formattedDate = format(new Date(log.date + "T12:00:00"), "MMMM d, yyyy");
+    const pdfUrl = `${window.location.origin}/api/logs/${id}/pdf`;
+    
+    const subject = encodeURIComponent(`Sign-In Sheet - ${log.projectNameLocation} - ${formattedDate}`);
+    const body = encodeURIComponent(
+      `Daily Sign-In Sheet\n\n` +
+      `Project: ${log.projectNameLocation}\n` +
+      `Date: ${formattedDate}\n` +
+      `Contract #: ${log.contractNumber}\n` +
+      `Prime Contractor: ${log.primeContractor}\n` +
+      `${log.subcontractor ? `Subcontractor: ${log.subcontractor}\n` : ''}` +
+      `Agency: ${log.agency}\n` +
+      `Address: ${log.address}\n` +
+      `Workers: ${log.workers.length}\n\n` +
+      `Download PDF: ${pdfUrl}\n\n` +
+      `---\nSent from Site Command`
+    );
+    
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
 
   const handleSignLog = async () => {
     if (!signRepName.trim() || !signRepTitle.trim()) {
@@ -302,7 +326,10 @@ export default function LogDetail() {
             <h1 className="text-3xl font-bold">{log.projectNameLocation}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <Button onClick={exportPdf} className="shadow-lg shadow-primary/20">
+            <Button onClick={handleEmailLog} variant="outline" data-testid="button-email-log">
+              <Mail className="mr-2 h-4 w-4" /> Email
+            </Button>
+            <Button onClick={exportPdf} className="shadow-lg shadow-primary/20" data-testid="button-export-pdf">
               <Download className="mr-2 h-4 w-4" /> Export PDF
             </Button>
           </div>
