@@ -65,7 +65,8 @@ export async function registerRoutes(
           field: err.errors[0].path.join('.'),
         });
       }
-      throw err;
+      console.error("Error creating log:", err);
+      return res.status(500).json({ message: "Failed to save daily log" });
     }
   });
 
@@ -234,12 +235,17 @@ export async function registerRoutes(
 
   // Clone Log
   app.post(api.logs.clone.path, isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
-    const clonedLog = await storage.cloneLog(Number(req.params.id), userId);
-    if (!clonedLog) {
-      return res.status(404).json({ message: 'Log not found' });
+    try {
+      const userId = req.user.claims.sub;
+      const clonedLog = await storage.cloneLog(Number(req.params.id), userId);
+      if (!clonedLog) {
+        return res.status(404).json({ message: 'Log not found' });
+      }
+      res.status(201).json(clonedLog);
+    } catch (err) {
+      console.error("Error cloning log:", err);
+      return res.status(500).json({ message: "Failed to clone log" });
     }
-    res.status(201).json(clonedLog);
   });
 
   // Delete Log (only unsigned logs can be deleted)

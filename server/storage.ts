@@ -28,11 +28,20 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async createLog(input: CreateLogRequest, userId: string): Promise<DailyLog & { workers: Worker[] }> {
-    // Transaction to ensure consistency
     return await db.transaction(async (tx) => {
       const { workers: workersList, ...logData } = input;
       
-      const [newLog] = await tx.insert(dailyLogs).values({ ...logData, userId }).returning();
+      const sanitizedLogData = {
+        ...logData,
+        userId,
+        subcontractor: logData.subcontractor || null,
+        contractorRepName: logData.contractorRepName || null,
+        contractorRepTitle: logData.contractorRepTitle || null,
+        contractorRepSignature: logData.contractorRepSignature || null,
+        contractorRepDate: logData.contractorRepDate || null,
+      };
+      
+      const [newLog] = await tx.insert(dailyLogs).values(sanitizedLogData).returning();
       
       let newWorkers: Worker[] = [];
       if (workersList.length > 0) {
