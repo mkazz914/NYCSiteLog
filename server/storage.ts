@@ -123,7 +123,6 @@ export class DatabaseStorage implements IStorage {
         contractorRepDate: null,
       }).returning();
 
-      // Clone workers with cleared signatures
       let newWorkers: Worker[] = [];
       if (existingLog.workers.length > 0) {
         const workersToInsert = existingLog.workers.map(w => ({
@@ -131,9 +130,9 @@ export class DatabaseStorage implements IStorage {
           name: w.name,
           classification: w.classification,
           timeIn: w.timeIn,
-          signatureIn: null,
-          timeOut: null,
-          signatureOut: null,
+          signatureIn: w.signatureIn,
+          timeOut: w.timeOut,
+          signatureOut: w.signatureOut,
         }));
         newWorkers = await tx.insert(workers).values(workersToInsert).returning();
       }
