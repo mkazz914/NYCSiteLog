@@ -9,7 +9,7 @@ import { PDFDocument } from "pdf-lib";
 import { db } from "./db";
 import { workers } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -20,37 +20,6 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
   
-  // Debug endpoint to list all form fields in PDF
-  app.get("/api/debug/pdf-fields", isAuthenticated, async (req, res) => {
-    try {
-      const templatePath = path.join(process.cwd(), "attached_assets", "NYCDDC_-_Sign_In_Sheet_APP_1766096042760.pdf");
-      if (!fs.existsSync(templatePath)) {
-        return res.status(404).json({ message: "PDF template not found" });
-      }
-      
-      const templateBytes = fs.readFileSync(templatePath);
-      const pdfDoc = await PDFDocument.load(templateBytes);
-      const form = pdfDoc.getForm();
-      
-      const fields: string[] = [];
-      try {
-        const fieldList = form.getFields();
-        fieldList.forEach((field) => {
-          fields.push(field.getName());
-        });
-      } catch (e) {
-        // Continue
-      }
-      
-      res.json({
-        fields: fields,
-        message: "Available PDF form fields"
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // Create Log
   app.post(api.logs.create.path, isAuthenticated, async (req: any, res) => {
     try {

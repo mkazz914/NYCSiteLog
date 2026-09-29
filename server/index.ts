@@ -14,6 +14,7 @@ declare module "http" {
 
 app.use(
   express.json({
+    limit: "5mb", // signature images are sent as base64
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },

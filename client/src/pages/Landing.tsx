@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { HardHat, FileText, Users, Shield } from "lucide-react";
 
 export default function Landing() {
+  const signInFailed = new URLSearchParams(window.location.search).has("error");
   const handleLogin = () => {
     window.location.href = "/api/login";
   };
@@ -21,10 +22,16 @@ export default function Landing() {
             </div>
           </div>
           <Button onClick={handleLogin} data-testid="button-login">
-            Sign In with Replit
+            Sign in with Google
           </Button>
         </div>
       </header>
+
+      {signInFailed && (
+        <div className="bg-destructive/10 text-destructive text-center text-sm py-3 px-4" role="alert" data-testid="text-signin-error">
+          Sign-in failed. This prototype is invite-only, so make sure you are using an approved Google account.
+        </div>
+      )}
 
       <main className="container px-4 sm:px-8 py-16">
         <div className="max-w-3xl mx-auto text-center space-y-6 mb-16">
