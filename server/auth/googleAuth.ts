@@ -30,6 +30,18 @@ function getAllowedEmails(): Set<string> {
   );
 }
 
+// Optional: every account managed by these Google Workspace domains may sign in
+// (comma-separated, e.g. "mfmcontracting.com"). Checked against Google's `hd`
+// (hosted domain) claim, so a look-alike personal account cannot use it.
+function getAllowedDomains(): Set<string> {
+  return new Set(
+    (process.env.ALLOWED_DOMAINS ?? "")
+      .split(",")
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
 // Public base URL of the site, used to build the Google redirect URI.
 function getBaseUrl(): string {
   return (process.env.PUBLIC_URL ?? `http://localhost:${process.env.PORT || 5000}`).replace(/\/+$/, "");
@@ -87,15 +99,19 @@ export async function setupAuth(app: Express) {
 
   const config = await getOidcConfig();
   const allowedEmails = getAllowedEmails();
-  if (allowedEmails.size === 0) {
-    console.warn("ALLOWED_EMAILS is empty: nobody will be able to sign in.");
+  const allowedDomains = getAllowedDomains();
+  if (allowedEmails.size === 0 && allowedDomains.size === 0) {
+    console.warn("ALLOWED_EMAILS and ALLOWED_DOMAINS are both empty: nobody will be able to sign in.");
   }
 
   const verify: VerifyFunction = async (tokens, verified) => {
     try {
       const claims: any = tokens.claims();
       const email = String(claims?.email ?? "").toLowerCase();
-      if (!claims?.sub || !email || claims.email_verified !== true || !allowedEmails.has(email)) {
+      const hostedDomain = String(claims?.hd ?? "").toLowerCase();
+      const isAllowed =
+        allowedEmails.has(email) || (hostedDomain !== "" && allowedDomains.has(hostedDomain));
+      if (!claims?.sub || !email || claims.email_verified !== true || !isAllowed) {
         console.warn(`Sign-in rejected for ${email || "unknown account"}`);
         return verified(null, false);
       }

@@ -7,8 +7,9 @@ import fs from "fs";
 import path from "path";
 import { PDFDocument } from "pdf-lib";
 import { db } from "./db";
-import { workers } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { workers, auditEvents } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
+import { recordAudit } from "./audit";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth";
 
 export async function registerRoutes(
@@ -16,6 +17,19 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // Express 4 does not catch errors thrown inside async handlers, so an
+  // unexpected failure would leave the request hanging. Route them to the
+  // error handler in index.ts (which answers with a clean 500) instead.
+  const wrapAsync = (fn: any) =>
+    typeof fn === "function" && fn.length < 4
+      ? (req: any, res: any, next: any) => Promise.resolve(fn(req, res, next)).catch(next)
+      : fn;
+  for (const method of ["get", "post", "patch", "delete"] as const) {
+    const original = (app as any)[method].bind(app);
+    (app as any)[method] = (path: any, ...handlers: any[]) =>
+      handlers.length === 0 ? original(path) : original(path, ...handlers.map(wrapAsync));
+  }
+
   // Setup auth BEFORE other routes
   await setupAuth(app);
   registerAuthRoutes(app);
@@ -26,6 +40,7 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const input = api.logs.create.input.parse(req.body);
       const log = await storage.createLog(input, userId);
+      await recordAudit(req, "log.create", log.id, `workers=${input.workers.length}`);
       res.status(201).json(log);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -191,6 +206,7 @@ export async function registerRoutes(
       }
 
       const pdfBytes = await finalPdf.save();
+      await recordAudit(req, "log.export_pdf", log.id);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="DailyLog-${log.id}.pdf"`);
@@ -210,6 +226,7 @@ export async function registerRoutes(
       if (!clonedLog) {
         return res.status(404).json({ message: 'Log not found' });
       }
+      await recordAudit(req, "log.clone", clonedLog.id, `from=${req.params.id}`);
       res.status(201).json(clonedLog);
     } catch (err) {
       console.error("Error cloning log:", err);
@@ -228,6 +245,7 @@ export async function registerRoutes(
       return res.status(400).json({ message: 'Cannot delete a signed log' });
     }
     const success = await storage.deleteLog(Number(req.params.id), userId);
+    if (success) await recordAudit(req, "log.delete", log.id);
     res.json({ success });
   });
 
@@ -249,6 +267,7 @@ export async function registerRoutes(
       if (!updated) {
         return res.status(404).json({ message: 'Log not found' });
       }
+      await recordAudit(req, "log.update", logId, `fields=${Object.keys(input).join(",")}`);
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -279,6 +298,7 @@ export async function registerRoutes(
       if (!updated) {
         return res.status(404).json({ message: 'Log not found' });
       }
+      await recordAudit(req, "log.sign", logId, `signer=${input.contractorRepName}; title=${input.contractorRepTitle}`);
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -309,6 +329,7 @@ export async function registerRoutes(
       if (!worker) {
         return res.status(404).json({ message: 'Log not found' });
       }
+      await recordAudit(req, "worker.add", logId, `worker=${worker.id}`);
       res.status(201).json(worker);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -347,6 +368,7 @@ export async function registerRoutes(
       if (!updated) {
         return res.status(404).json({ message: 'Worker not found' });
       }
+      await recordAudit(req, "worker.update", workerRecord.dailyLogId, `worker=${workerId}; fields=${Object.keys(input).join(",")}`);
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -359,14 +381,45 @@ export async function registerRoutes(
     }
   });
 
-  // Delete Worker
+  // Delete Worker (not allowed once the log has been signed)
   app.delete(api.workers.delete.path, isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;
-    const success = await storage.deleteWorker(Number(req.params.id), userId);
+    const workerId = Number(req.params.id);
+
+    const [workerRecord] = await db.select().from(workers).where(eq(workers.id, workerId));
+    if (!workerRecord) {
+      return res.status(404).json({ message: 'Worker not found' });
+    }
+    const log = await storage.getLog(workerRecord.dailyLogId, userId);
+    if (!log) {
+      return res.status(404).json({ message: 'Worker not found' });
+    }
+    if (log.contractorRepSignature) {
+      return res.status(400).json({ message: 'Cannot remove workers from a signed log' });
+    }
+
+    const success = await storage.deleteWorker(workerId, userId);
     if (!success) {
       return res.status(404).json({ message: 'Worker not found' });
     }
+    await recordAudit(req, "worker.delete", workerRecord.dailyLogId, `worker=${workerId}`);
     res.json({ success: true });
+  });
+
+  // Activity history for a log (owner only)
+  app.get("/api/logs/:id/audit", isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const logId = Number(req.params.id);
+    const log = await storage.getLog(logId, userId);
+    if (!log) {
+      return res.status(404).json({ message: 'Log not found' });
+    }
+    const events = await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.logId, logId))
+      .orderBy(desc(auditEvents.createdAt));
+    res.json(events);
   });
 
   return httpServer;

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, date, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, date, varchar, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -31,6 +31,24 @@ export const workers = pgTable("workers", {
   timeOut: text("time_out"),
   signatureOut: text("signature_out"), // Base64 data URL
 });
+
+// Append-only history of actions taken on logs (who, what, when, from where).
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: serial("id").primaryKey(),
+    logId: integer("log_id"), // no foreign key on purpose: history outlives deleted logs
+    userId: varchar("user_id").notNull(),
+    userEmail: text("user_email"),
+    action: text("action").notNull(),
+    detail: text("detail"),
+    ip: text("ip"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("IDX_audit_log_id").on(table.logId)]
+);
+
+export type AuditEvent = typeof auditEvents.$inferSelect;
 
 export const dailyLogsRelations = relations(dailyLogs, ({ many }) => ({
   workers: many(workers),

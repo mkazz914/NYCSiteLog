@@ -5,7 +5,7 @@ services:
     plan: free
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm run db:push && npm start
-    healthCheckPath: /
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production

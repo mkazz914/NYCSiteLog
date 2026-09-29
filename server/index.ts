@@ -2,9 +2,36 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { securityHeaders, rateLimit } from "./security";
+import { pool } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
+
+// The site runs behind Render's proxy: trust it for the real client IP.
+app.set("trust proxy", 1);
+app.use(securityHeaders);
+
+// Uptime check for Render and monitoring tools. No login needed, no data exposed.
+app.get("/healthz", async (_req, res) => {
+  try {
+    await pool.query("select 1");
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Health check failed:", err);
+    res.status(503).json({ ok: false });
+  }
+});
+
+// Rate limits (per client IP). Generous for normal use, tight for login and PDFs.
+app.use("/api/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 30 }));
+app.use("/api/callback", rateLimit({ windowMs: 15 * 60 * 1000, max: 30 }));
+app.use(/^\/api\/logs\/[^/]+\/pdf$/, rateLimit({ windowMs: 60 * 1000, max: 20 }));
+app.use("/api", rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 }));
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
 
 declare module "http" {
   interface IncomingMessage {
@@ -34,26 +61,15 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+// Request log: method, path, status and timing only. Response bodies are never
+// logged because they contain worker names and signature images.
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
-    const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+      log(`${req.method} ${path} ${res.statusCode} in ${Date.now() - start}ms`);
     }
   });
 
@@ -63,12 +79,13 @@ app.use((req, res, next) => {
 (async () => {
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
+    console.error(err);
+    if (res.headersSent) return next(err);
+    res.status(status).json({
+      message: status >= 500 ? "Internal Server Error" : err.message || "Request failed",
+    });
   });
 
   // importantly only setup vite in development and after
