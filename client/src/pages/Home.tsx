@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { BatchExport } from "@/components/BatchExport";
 
 type Log = {
   id: number;
@@ -200,6 +201,7 @@ export default function Home() {
                   </div>
                   {isOpen && (
                     <div className="border-t px-4 py-4">
+                      <BatchExport contractNumber={group.contractNumber} logs={group.logs} />
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {group.logs.map((log) => (
                           <Link key={log.id} href={`/logs/${log.id}`}>

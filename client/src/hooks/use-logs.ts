@@ -228,3 +228,36 @@ export function useSignLog() {
     },
   });
 }
+
+export type BatchExportInput = {
+  contractNumber: string;
+  from: string; // YYYY-MM-DD
+  to: string; // YYYY-MM-DD
+  includeDrafts: boolean;
+};
+
+// Downloads one merged PDF containing every matching log for a job and date range.
+export async function exportBatchPdf(input: BatchExportInput): Promise<void> {
+  const res = await fetch("/api/logs/batch-pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message || "Failed to export PDFs");
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "Sign_In_Sheets.pdf";
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = downloadUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}

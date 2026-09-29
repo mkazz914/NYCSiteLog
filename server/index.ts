@@ -27,6 +27,7 @@ app.get("/healthz", async (_req, res) => {
 app.use("/api/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 30 }));
 app.use("/api/callback", rateLimit({ windowMs: 15 * 60 * 1000, max: 30 }));
 app.use(/^\/api\/logs\/[^/]+\/pdf$/, rateLimit({ windowMs: 60 * 1000, max: 20 }));
+app.use("/api/logs/batch-pdf", rateLimit({ windowMs: 60 * 1000, max: 5 }));
 app.use("/api", rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 }));
 
 process.on("unhandledRejection", (reason) => {

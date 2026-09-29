@@ -3,14 +3,24 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import fs from "fs";
-import path from "path";
 import { PDFDocument } from "pdf-lib";
 import { db } from "./db";
 import { workers, auditEvents } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import { recordAudit } from "./audit";
+import { buildLogPdf, loadTemplate } from "./pdf";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth";
+
+const BATCH_PDF_MAX_LOGS = 50;
+
+const batchPdfSchema = z
+  .object({
+    contractNumber: z.string().min(1, "Choose a job"),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Start date is required"),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "End date is required"),
+    includeDrafts: z.boolean().optional().default(false),
+  })
+  .refine((v) => v.from <= v.to, { message: "Start date must be on or before the end date", path: ["from"] });
 
 export async function registerRoutes(
   httpServer: Server,
@@ -80,130 +90,12 @@ export async function registerRoutes(
     }
 
     try {
-      const templatePath = path.join(process.cwd(), "attached_assets", "NYCDDC_-_Sign_In_Sheet_APP_1766096042760.pdf");
-      
-      if (!fs.existsSync(templatePath)) {
-        console.error("PDF template not found at:", templatePath);
+      const templateBytes = loadTemplate();
+      if (!templateBytes) {
         return res.status(500).json({ message: "PDF template not found" });
       }
 
-      const templateBytes = fs.readFileSync(templatePath);
-      const workers = log.workers || [];
-      const WORKERS_PER_PAGE = 12;
-      const numPages = Math.max(1, Math.ceil(workers.length / WORKERS_PER_PAGE));
-
-      const finalPdf = await PDFDocument.create();
-
-      for (let pageNum = 0; pageNum < numPages; pageNum++) {
-        const pdfDoc = await PDFDocument.load(templateBytes);
-        const form = pdfDoc.getForm();
-        const page = pdfDoc.getPage(0);
-
-        const safeFill = (name: string, value: string | undefined | null) => {
-          if (!value) return;
-          try {
-            const field = form.getTextField(name);
-            if (field) field.setText(value);
-          } catch (e) {}
-        };
-
-        safeFill("Prime Contractor", log.primeContractor);
-        safeFill("Subcontractor", log.subcontractor);
-        safeFill("Contract", log.contractNumber);
-        safeFill("Address", log.address);
-        safeFill("Agency", log.agency);
-        safeFill("Project Name/Location", log.projectNameLocation);
-        safeFill("Project NameLocation", log.projectNameLocation);
-        
-        const dateStr = log.date ? new Date(log.date + "T12:00:00").toLocaleDateString() : "";
-        safeFill("Date", dateStr);
-
-        safeFill("Name(Print)", log.contractorRepName);
-        safeFill("NamePrint", log.contractorRepName);
-        safeFill("Title", log.contractorRepTitle);
-        const repDateStr = log.contractorRepDate ? new Date(log.contractorRepDate + "T12:00:00").toLocaleDateString() : "";
-        safeFill("Date_2", repDateStr);
-        safeFill("DATE", repDateStr);
-
-        const embedSignatureInField = async (fieldName: string, signatureData: string | undefined) => {
-          if (!signatureData || !signatureData.startsWith('data:image')) return;
-          try {
-            const base64Data = signatureData.split(',')[1];
-            if (base64Data) {
-              const imageBytes = Buffer.from(base64Data, 'base64');
-              const image = await pdfDoc.embedPng(imageBytes);
-              try {
-                const field = form.getField(fieldName);
-                if (field && 'setImage' in field) {
-                  (field as any).setImage(image);
-                }
-              } catch (e) {}
-            }
-          } catch (e) {}
-        };
-
-        const startIndex = pageNum * WORKERS_PER_PAGE;
-        const endIndex = Math.min(startIndex + WORKERS_PER_PAGE, workers.length);
-        
-        for (let i = startIndex; i < endIndex; i++) {
-          const worker = workers[i];
-          const rowIndex = i - startIndex;
-          const fieldIndex = `1.${rowIndex}`;
-
-          try {
-            const nameField = form.getTextField(`Employee Name ${fieldIndex}`);
-            if (nameField && worker.name) nameField.setText(worker.name);
-          } catch (e) {}
-
-          try {
-            const classField = form.getTextField(`Classification${fieldIndex}`);
-            if (classField && worker.classification) classField.setText(worker.classification);
-          } catch (e) {}
-
-          try {
-            const timeInField = form.getTextField(`Time_In${fieldIndex}`);
-            if (timeInField && worker.timeIn) timeInField.setText(worker.timeIn);
-          } catch (e) {}
-
-          try {
-            const timeOutField = form.getTextField(`Time_Out${fieldIndex}`);
-            if (timeOutField && worker.timeOut) timeOutField.setText(worker.timeOut);
-          } catch (e) {}
-
-          try {
-            if (worker.signatureIn && worker.signatureIn.startsWith('data:image')) {
-              await embedSignatureInField(`EmployeeSigIn_${fieldIndex}`, worker.signatureIn);
-            }
-          } catch (e) {}
-
-          try {
-            if (worker.signatureOut && worker.signatureOut.startsWith('data:image')) {
-              await embedSignatureInField(`EmployeeSigOut${fieldIndex}`, worker.signatureOut);
-            }
-          } catch (e) {}
-        }
-
-        try {
-          if (log.contractorRepSignature && log.contractorRepSignature.startsWith('data:image')) {
-            const base64Data = log.contractorRepSignature.split(',')[1];
-            if (base64Data) {
-              const imageBytes = Buffer.from(base64Data, 'base64');
-              const image = await pdfDoc.embedPng(imageBytes);
-              page.drawImage(image, {
-                x: 20,
-                y: 70,
-                width: 80,
-                height: 40
-              });
-            }
-          }
-        } catch (e) {}
-
-        form.flatten();
-        
-        const [copiedPage] = await finalPdf.copyPages(pdfDoc, [0]);
-        finalPdf.addPage(copiedPage);
-      }
+      const finalPdf = await buildLogPdf(log, templateBytes);
 
       const pdfBytes = await finalPdf.save();
       await recordAudit(req, "log.export_pdf", log.id);
@@ -216,6 +108,74 @@ export async function registerRoutes(
       console.error("PDF generation error:", error);
       res.status(500).json({ message: "Failed to generate PDF" });
     }
+  });
+
+  // Batch export: every log for one job (contract number) in a date range, merged into one PDF.
+  // Signed logs only unless includeDrafts is set; drafts are stamped "DRAFT" on each page.
+  app.post("/api/logs/batch-pdf", isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+
+    let input: z.infer<typeof batchPdfSchema>;
+    try {
+      input = batchPdfSchema.parse(req.body);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      throw err;
+    }
+
+    const allLogs = await storage.getLogs(userId);
+    const matching = allLogs
+      .filter(
+        (l) =>
+          l.contractNumber === input.contractNumber &&
+          l.date >= input.from &&
+          l.date <= input.to &&
+          (input.includeDrafts || !!l.contractorRepSignature)
+      )
+      .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+
+    if (matching.length === 0) {
+      return res.status(404).json({
+        message: input.includeDrafts
+          ? "No logs found for that job and date range."
+          : "No signed logs found for that job and date range. Tick 'include unsigned drafts' to export drafts too.",
+      });
+    }
+    if (matching.length > BATCH_PDF_MAX_LOGS) {
+      return res.status(400).json({
+        message: `That range has ${matching.length} logs. Please narrow it to ${BATCH_PDF_MAX_LOGS} or fewer.`,
+      });
+    }
+
+    const templateBytes = loadTemplate();
+    if (!templateBytes) {
+      return res.status(500).json({ message: "PDF template not found" });
+    }
+
+    // Built one log at a time to keep memory use low on small servers.
+    const merged = await PDFDocument.create();
+    for (const row of matching) {
+      const log = await storage.getLog(row.id, userId);
+      if (!log) continue;
+      const doc = await buildLogPdf(log, templateBytes, { draft: !log.contractorRepSignature });
+      const pages = await merged.copyPages(doc, doc.getPageIndices());
+      pages.forEach((page) => merged.addPage(page));
+    }
+    const pdfBytes = await merged.save();
+
+    await recordAudit(
+      req,
+      "log.batch_export_pdf",
+      null,
+      `contract=${input.contractNumber}; from=${input.from}; to=${input.to}; logs=${matching.length}; drafts=${input.includeDrafts}`
+    );
+
+    const safeContract = input.contractNumber.replace(/[^\w.-]+/g, "_");
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="SignIn_${safeContract}_${input.from}_to_${input.to}.pdf"`);
+    res.send(Buffer.from(pdfBytes));
   });
 
   // Clone Log
