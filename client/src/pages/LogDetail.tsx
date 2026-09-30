@@ -14,6 +14,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import SignatureCanvas from "react-signature-canvas";
+import type { UpdateWorker } from "@shared/schema";
+import { TextCell, TimeCell, SignatureCell } from "@/components/WorkerCells";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function LogDetail() {
   const [, params] = useRoute("/logs/:id");
@@ -41,12 +53,7 @@ export default function LogDetail() {
   const [newWorkerClassification, setNewWorkerClassification] = useState("");
   const [newWorkerTimeIn, setNewWorkerTimeIn] = useState("07:00");
   
-  const [isEditWorkerOpen, setIsEditWorkerOpen] = useState(false);
-  const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
-  const [editTimeIn, setEditTimeIn] = useState("");
-  const [editTimeOut, setEditTimeOut] = useState("");
-  const signatureInRef = useRef<SignatureCanvas | null>(null);
-  const signatureOutRef = useRef<SignatureCanvas | null>(null);
+  const [workerToDelete, setWorkerToDelete] = useState<{ id: number; name: string } | null>(null);
   
   const [isSignOpen, setIsSignOpen] = useState(false);
   const [signRepName, setSignRepName] = useState("");
@@ -231,42 +238,14 @@ export default function LogDetail() {
     }
   };
 
-  const handleEditWorker = (worker: Worker) => {
-    setEditingWorker(worker);
-    setEditTimeIn(worker.timeIn || "");
-    setEditTimeOut(worker.timeOut || "");
-    setIsEditWorkerOpen(true);
-  };
-
-  const handleSaveWorkerEdit = async () => {
-    if (!editingWorker) return;
-    
+  // Saves one change to a worker. Used by the tap-to-edit fields below, which
+  // show their own "Saved" tick; here we only handle failures.
+  const saveWorker = async (worker: Worker, data: UpdateWorker) => {
     try {
-      const signatureIn = signatureInRef.current?.isEmpty() 
-        ? editingWorker.signatureIn 
-        : signatureInRef.current?.toDataURL("image/png");
-      const signatureOut = signatureOutRef.current?.isEmpty() 
-        ? editingWorker.signatureOut 
-        : signatureOutRef.current?.toDataURL("image/png");
-      
-      await updateWorker.mutateAsync({
-        workerId: editingWorker.id,
-        data: {
-          timeIn: editTimeIn || null,
-          timeOut: editTimeOut || null,
-          signatureIn: signatureIn || null,
-          signatureOut: signatureOut || null,
-        },
-      });
+      await updateWorker.mutateAsync({ workerId: worker.id, data });
       queryClient.invalidateQueries({ queryKey: [api.logs.get.path, id] });
-      toast({
-        title: "Worker updated",
-        description: `${editingWorker.name}'s information has been saved.`,
-      });
-      setIsEditWorkerOpen(false);
-      setEditingWorker(null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not save the worker information.";
+      const message = error instanceof Error ? error.message : "Could not save the change.";
       if (message.includes("signed log")) {
         queryClient.invalidateQueries({ queryKey: [api.logs.get.path, id] });
         toast({
@@ -274,14 +253,14 @@ export default function LogDetail() {
           description: "This log has been signed and can no longer be edited.",
           variant: "destructive",
         });
-        setIsEditWorkerOpen(false);
       } else {
         toast({
-          title: "Failed to update worker",
+          title: "Change not saved",
           description: message,
           variant: "destructive",
         });
       }
+      throw error;
     }
   };
 
@@ -523,83 +502,99 @@ export default function LogDetail() {
                 )}
               </div>
               
-              <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-muted/50 text-xs uppercase text-muted-foreground font-semibold">
-                      <tr>
-                        <th className="px-6 py-4">Name</th>
-                        <th className="px-6 py-4">Classification</th>
-                        <th className="px-6 py-4">Time In</th>
-                        <th className="px-6 py-4">Time Out</th>
-                        <th className="px-6 py-4 text-center">Signatures</th>
-                        {canEditWorkers && <th className="px-6 py-4 text-center">Actions</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {log.workers.map((worker) => (
-                        <tr key={worker.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-6 py-4 font-medium">
-                            {canEditWorkers ? (
-                              <button
-                                onClick={() => handleEditWorker(worker)}
-                                className="text-left hover:text-primary hover:underline cursor-pointer"
-                                data-testid={`link-worker-name-${worker.id}`}
-                              >
-                                {worker.name}
-                              </button>
-                            ) : (
-                              worker.name
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-muted-foreground">{worker.classification}</td>
-                          <td className="px-6 py-4 font-mono">{worker.timeIn}</td>
-                          <td className="px-6 py-4 font-mono">{worker.timeOut || "--:--"}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex justify-center gap-4">
-                              <div className={`h-8 w-16 border rounded bg-muted/20 flex items-center justify-center ${worker.signatureIn ? 'border-green-500/20 bg-green-500/5' : 'border-dashed'}`}>
-                                {worker.signatureIn ? (
-                                  <img src={worker.signatureIn} alt="Sig In" className="h-full w-full object-contain p-0.5" />
-                                ) : (
-                                  <span className="text-[9px] text-muted-foreground/50">NO SIG</span>
-                                )}
-                              </div>
-                              <div className={`h-8 w-16 border rounded bg-muted/20 flex items-center justify-center ${worker.signatureOut ? 'border-green-500/20 bg-green-500/5' : 'border-dashed'}`}>
-                                {worker.signatureOut ? (
-                                  <img src={worker.signatureOut} alt="Sig Out" className="h-full w-full object-contain p-0.5" />
-                                ) : (
-                                  <span className="text-[9px] text-muted-foreground/50">NO SIG</span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          {canEditWorkers && (
-                            <td className="px-6 py-4 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => handleEditWorker(worker)}
-                                  data-testid={`button-edit-worker-${worker.id}`}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => handleDeleteWorker(worker.id, worker.name)}
-                                  disabled={deleteWorker.isPending}
-                                  data-testid={`button-delete-worker-${worker.id}`}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div className="bg-card rounded-xl border shadow-sm overflow-hidden" data-testid="worker-list">
+                {canEditWorkers && log.workers.length > 0 && (
+                  <p className="px-4 py-3 text-sm text-muted-foreground border-b bg-muted/30">
+                    Tap any field to change it. Changes save automatically. Tap <strong>Tap to sign</strong> to collect a signature.
+                  </p>
+                )}
+                <div className="hidden lg:grid lg:grid-cols-[1.4fr_1.2fr_140px_140px_140px_140px_44px] gap-3 px-4 py-3 bg-muted/50 text-xs uppercase text-muted-foreground font-semibold">
+                  <span>Name</span>
+                  <span>Classification</span>
+                  <span>Time In</span>
+                  <span>Time Out</span>
+                  <span>Sign In</span>
+                  <span>Sign Out</span>
+                  <span />
+                </div>
+                <div className="divide-y">
+                  {log.workers.length === 0 && (
+                    <p className="p-6 text-center text-sm text-muted-foreground">No workers yet. Tap Add Worker to start the log.</p>
+                  )}
+                  {log.workers.map((worker) => (
+                    <div
+                      key={worker.id}
+                      className="grid grid-cols-2 lg:grid-cols-[1.4fr_1.2fr_140px_140px_140px_140px_44px] gap-3 p-4 items-end lg:items-center"
+                      data-testid={`row-worker-${worker.id}`}
+                    >
+                      <div className="col-span-2 lg:col-span-1">
+                        <TextCell
+                          label="Name"
+                          value={worker.name}
+                          bold
+                          disabled={!canEditWorkers}
+                          onSave={(name) => saveWorker(worker, { name })}
+                          testId={`input-worker-name-${worker.id}`}
+                        />
+                      </div>
+                      <div className="col-span-2 lg:col-span-1">
+                        <TextCell
+                          label="Classification"
+                          value={worker.classification}
+                          disabled={!canEditWorkers}
+                          onSave={(classification) => saveWorker(worker, { classification })}
+                          testId={`input-worker-classification-${worker.id}`}
+                        />
+                      </div>
+                      <TimeCell
+                        label="Time In"
+                        value={worker.timeIn}
+                        disabled={!canEditWorkers}
+                        onSave={(timeIn) => saveWorker(worker, { timeIn })}
+                        testId={`input-time-in-${worker.id}`}
+                      />
+                      <TimeCell
+                        label="Time Out"
+                        value={worker.timeOut}
+                        disabled={!canEditWorkers}
+                        onSave={(timeOut) => saveWorker(worker, { timeOut })}
+                        testId={`input-time-out-${worker.id}`}
+                      />
+                      <SignatureCell
+                        label="Sign In"
+                        workerName={worker.name}
+                        value={worker.signatureIn}
+                        disabled={!canEditWorkers}
+                        onSave={(signatureIn) => saveWorker(worker, { signatureIn })}
+                        testId={`button-sign-in-${worker.id}`}
+                      />
+                      <SignatureCell
+                        label="Sign Out"
+                        workerName={worker.name}
+                        value={worker.signatureOut}
+                        disabled={!canEditWorkers}
+                        onSave={(signatureOut) => saveWorker(worker, { signatureOut })}
+                        testId={`button-sign-out-${worker.id}`}
+                      />
+                      {canEditWorkers ? (
+                        <div className="col-span-2 lg:col-span-1 flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive lg:px-2"
+                            onClick={() => setWorkerToDelete({ id: worker.id, name: worker.name })}
+                            aria-label={`Remove ${worker.name}`}
+                            data-testid={`button-delete-worker-${worker.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="ml-1.5 lg:hidden">Remove worker</span>
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="hidden lg:block" />
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -677,108 +672,28 @@ export default function LogDetail() {
         </div>
       </main>
 
-      <Dialog open={isEditWorkerOpen} onOpenChange={(open) => {
-        setIsEditWorkerOpen(open);
-        if (!open) setEditingWorker(null);
-      }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Worker: {editingWorker?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-time-in">Time In</Label>
-                <Input
-                  id="edit-time-in"
-                  type="time"
-                  value={editTimeIn}
-                  onChange={(e) => setEditTimeIn(e.target.value)}
-                  data-testid="input-edit-time-in"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-time-out">Time Out</Label>
-                <Input
-                  id="edit-time-out"
-                  type="time"
-                  value={editTimeOut}
-                  onChange={(e) => setEditTimeOut(e.target.value)}
-                  data-testid="input-edit-time-out"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Sign In Signature</Label>
-              <div className="border rounded-lg bg-white">
-                {editingWorker?.signatureIn && (
-                  <div className="p-2 bg-muted/30 border-b">
-                    <img src={editingWorker.signatureIn} alt="Current signature" className="h-12 object-contain" />
-                    <span className="text-xs text-muted-foreground">Current signature (draw below to replace)</span>
-                  </div>
-                )}
-                <SignatureCanvas
-                  ref={signatureInRef}
-                  canvasProps={{
-                    className: "w-full h-24",
-                    style: { width: "100%", height: "96px" }
-                  }}
-                  backgroundColor="rgba(0,0,0,0)"
-                />
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => signatureInRef.current?.clear()}
-                data-testid="button-clear-signature-in"
-              >
-                Clear
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Sign Out Signature</Label>
-              <div className="border rounded-lg bg-white">
-                {editingWorker?.signatureOut && (
-                  <div className="p-2 bg-muted/30 border-b">
-                    <img src={editingWorker.signatureOut} alt="Current signature" className="h-12 object-contain" />
-                    <span className="text-xs text-muted-foreground">Current signature (draw below to replace)</span>
-                  </div>
-                )}
-                <SignatureCanvas
-                  ref={signatureOutRef}
-                  canvasProps={{
-                    className: "w-full h-24",
-                    style: { width: "100%", height: "96px" }
-                  }}
-                  backgroundColor="rgba(0,0,0,0)"
-                />
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => signatureOutRef.current?.clear()}
-                data-testid="button-clear-signature-out"
-              >
-                Clear
-              </Button>
-            </div>
-
-            <Button 
-              onClick={handleSaveWorkerEdit} 
-              className="w-full"
-              disabled={updateWorker.isPending}
-              data-testid="button-save-worker-edit"
+      <AlertDialog open={!!workerToDelete} onOpenChange={(open) => !open && setWorkerToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {workerToDelete?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This takes them off today's log, including their times and signatures.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (workerToDelete) void handleDeleteWorker(workerToDelete.id, workerToDelete.name);
+                setWorkerToDelete(null);
+              }}
+              data-testid="button-confirm-delete-worker"
             >
-              {updateWorker.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : null}
-              Save Changes
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={isSignOpen} onOpenChange={(open) => {
         setIsSignOpen(open);

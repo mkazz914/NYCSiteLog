@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SignaturePad } from "@/components/SignaturePad";
+import { SignatureCell } from "@/components/WorkerCells";
 import { Loader2, Plus, Trash2, Save, User, Clock, Briefcase } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -181,22 +182,24 @@ export default function CreateLog() {
                       </div>
                     </div>
 
-                    {/* Signatures Row */}
-                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-                      <div className="space-y-2">
-                        <SignaturePad 
-                          label="Signature In"
-                          onChange={(val) => form.setValue(`workers.${index}.signatureIn`, val || undefined)}
-                          value={form.getValues(`workers.${index}.signatureIn`)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <SignaturePad 
-                          label="Signature Out"
-                          onChange={(val) => form.setValue(`workers.${index}.signatureOut`, val || undefined)}
-                          value={form.getValues(`workers.${index}.signatureOut`)}
-                        />
-                      </div>
+                    {/* Signatures: tap a tile, sign in a pop-up, done (no long scrolling) */}
+                    <div className="md:col-span-2 grid grid-cols-2 gap-4 mt-2">
+                      <SignatureCell
+                        label="Signature In"
+                        workerName={form.watch(`workers.${index}.name`) || `Worker #${index + 1}`}
+                        value={form.watch(`workers.${index}.signatureIn`) ?? null}
+                        onSave={async (val) => {
+                          form.setValue(`workers.${index}.signatureIn`, val);
+                        }}
+                      />
+                      <SignatureCell
+                        label="Signature Out"
+                        workerName={form.watch(`workers.${index}.name`) || `Worker #${index + 1}`}
+                        value={form.watch(`workers.${index}.signatureOut`) ?? null}
+                        onSave={async (val) => {
+                          form.setValue(`workers.${index}.signatureOut`, val);
+                        }}
+                      />
                     </div>
                   </div>
                 </CardContent>

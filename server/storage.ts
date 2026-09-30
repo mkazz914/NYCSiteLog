@@ -181,6 +181,8 @@ export class DatabaseStorage implements IStorage {
     if (!log) return undefined;
     
     const updateData: Partial<Worker> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.classification !== undefined) updateData.classification = data.classification;
     if (data.timeIn !== undefined) updateData.timeIn = data.timeIn || existing.timeIn;
     if (data.timeOut !== undefined) updateData.timeOut = data.timeOut;
     if (data.signatureIn !== undefined) updateData.signatureIn = data.signatureIn;
